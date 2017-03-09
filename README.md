@@ -1,6 +1,6 @@
 # Episodic non-Markov Localization
 
-Implementation in C++ of Episodic non-Markov Localization [[pdf]](https://www.joydeepb.com/Publications/ras_episodic_nonmarkov_localization.pdf)
+Implementation in C++ of Episodic non-Markov Localization [[pdf]](https://www.joydeepb.com/Publications/ras_episodic_nonmarkov_localization.pdf).
 Please cite this work using the following bibtex:
 ```
 @article{biswas2016episodic,
