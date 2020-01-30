@@ -65,7 +65,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/shared/math/)
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
 
-SET(libs roslib roscpp ncurses popt pthread glut
+SET(libs roslib roscpp ncurses popt pthread glut boost_system
     ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
     ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11)
 
