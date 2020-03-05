@@ -55,6 +55,7 @@
 #include "gui_publisher_helper.h"
 #include "enml/LidarDisplayMsg.h"
 #include "enml/LocalizationMsg.h"
+#include "config_reader/config_reader.h"
 
 using cobot_gui::DrawLine;
 using cobot_gui::DrawPoint;
@@ -363,6 +364,28 @@ void nonblock(const bool blocking) {
 
 bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   if (!config_.readFiles()) return false;
+
+  #define ENML_FLOAT_CONFIG(x) \
+      CONFIG_FLOAT(x, "enml."#x)
+
+  ENML_FLOAT_CONFIG(starting_loc_x);
+  ENML_FLOAT_CONFIG(starting_loc_y);
+  ENML_FLOAT_CONFIG(starting_angle);
+  ENML_FLOAT_CONFIG(radial_translation_uncertainty);
+  ENML_FLOAT_CONFIG(tangential_translation_uncertainty);  
+  ENML_FLOAT_CONFIG(angle_uncertainty);
+  ENML_FLOAT_CONFIG(odometry_translation_scale);
+  ENML_FLOAT_CONFIG(odometry_rotation_scale);
+  ENML_FLOAT_CONFIG(max_odometry_delta_loc);
+  ENML_FLOAT_CONFIG(max_odometry_delta_angle);
+  ENML_FLOAT_CONFIG(min_point_cloud_range);
+  ENML_FLOAT_CONFIG(max_point_cloud_range);
+  ENML_FLOAT_CONFIG(max_normal_point_distance);
+  
+  config_reader::ConfigReader reader({
+      "config/common.lua",
+      "config/enml.lua"});
+  kSqMaxOdometryDeltaLoc = sq(kSqMaxOdometryDeltaLoc);
 
   ConfigReader::SubTree c(config_,"NonMarkovLocalization");
   bool error = false;

@@ -33,10 +33,12 @@ FIND_PACKAGE(OpenGL REQUIRED)
 FIND_PACKAGE(GLUT REQUIRED)
 FIND_PACKAGE(Lua51 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
-# SET(EIGEN_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/src/eigen)
 FIND_PACKAGE(Ceres REQUIRED)
 
 INCLUDE(${QT_USE_FILE})
+
+INCLUDE_DIRECTORIES(src/new_shared)
+ADD_SUBDIRECTORY(src/new_shared)
 
 FIND_PATH(GLEW_INCLUDE_PATH GL/glew.h
     /usr/include
@@ -60,6 +62,7 @@ FIND_LIBRARY(GLEW_LIBRARY
 INCLUDE_DIRECTORIES(${PROJECT_BINARY_DIR})
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src)
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/config-reader/include)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/shared/util/)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/shared/math/)
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
@@ -67,7 +70,7 @@ INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
 
 SET(libs roslib roscpp ncurses popt pthread glut boost_system
     ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
-    ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11)
+    ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11 amrl-shared-lib)
 
 SET(SHARED_SRCS
   src/shared/math/gvector.h
@@ -94,7 +97,7 @@ SET(GUI_SRCS
 # )
 
 
-#================================================================================
+#===============================================================================
 #Creating libraries to eliminate redundant compile steps
 
 ADD_LIBRARY(shared_libraries SHARED ${SHARED_SRCS})
