@@ -15,6 +15,8 @@ ELSEIF(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   SET(BUILD_SPECIFIC_LIBRARIES "")
 ENDIF()
 
+ADD_DEFINITIONS(-Wfatal-errors)
+
 INCLUDE($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 rosbuild_init()
 SET(ROS_BUILD_STATIC_LIBS true)
@@ -116,7 +118,7 @@ ROSBUILD_ADD_EXECUTABLE(enml
     src/kdtree.cpp
     src/gui_publisher_helper.cpp
     src/perception_2d.cpp
-    src/vector_map.cpp)
+    src/vector_map/vector_map.cc)
 ADD_DEPENDENCIES(enml
     shared_libraries
     rosbuild_precompile

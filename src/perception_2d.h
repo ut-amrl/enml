@@ -26,6 +26,8 @@
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
 
+#include "new_shared/math/math_util.h"
+
 namespace perception_2d {
 
 template <typename num>
@@ -77,7 +79,7 @@ struct Pose2D {
   void ApplyPose(const Pose2D<num>& pose_other) {
     const Eigen::Rotation2D<num> rotation(angle);
     translation += (rotation * pose_other.translation);
-    angle = angle_mod(angle + pose_other.angle);
+    angle = math_util::AngleMod(angle + pose_other.angle);
   }
 };
 

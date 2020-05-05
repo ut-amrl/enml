@@ -34,13 +34,17 @@
 
 #include "ceres/ceres.h"
 #include "ceres/dynamic_autodiff_cost_function.h"
-#include "vector_map.h"
 #include "perception_2d.h"
-#include "shared/math/util.h"
 #include "shared/util/helpers.h"
 #include "shared/util/pthread_utils.h"
-#include "shared/util/timer.h"
+#include "new_shared/util/random.h"
+#include "new_shared/util/timer.h"
+#include "new_shared/math/geometry.h"
+#include "new_shared/math/line2d.h"
+#include "new_shared/math/math_util.h"
+#include "new_shared/math/statistics.h"
 #include "residual_functors.h"
+#include "vector_map/vector_map.h"
 
 // #define ENABLE_TIMING
 
@@ -63,6 +67,7 @@ using perception_2d::PointCloudf;
 using perception_2d::Pose2Df;
 using std::make_pair;
 using std::max;
+using std::min;
 using std::pair;
 using std::size_t;
 using std::string;
@@ -70,6 +75,10 @@ using std::vector;
 using vector_localization::LTSConstraint;
 using vector_localization::PointToLineConstraint;
 using vector_localization::PoseConstraint;
+using vector_map::VectorMap;
+
+using namespace geometry;
+using namespace math_util;
 
 typedef Eigen::Translation<float, 2> Translation2Df;
 
@@ -112,37 +121,33 @@ void SetSolverOptions(
 class SRLCallback : public ceres::IterationCallback {
  public:
   SRLCallback(const vector<double>& poses,
-              const vector<vector2f>& point_cloud_g,
               const PointCloudf& point_cloud_e,
               const NormalCloudf& normal_cloud,
               const vector<LTSConstraint*>& constraints,
               void (*callback)(
                   const vector<double>& poses,
-                  const vector<vector2f>& point_cloud_g,
                   const PointCloudf& point_cloud_e,
                   const NormalCloudf& normal_cloud,
                   const vector<LTSConstraint*>& constraints)) :
-      poses_(poses), point_cloud_g_(point_cloud_g),
+      poses_(poses),
       point_cloud_e_(point_cloud_e), normal_cloud_(normal_cloud),
       constraints_(constraints), callback_(callback) {
   }
 
   virtual ceres::CallbackReturnType operator()(
       const IterationSummary& summary) {
-    callback_(poses_, point_cloud_g_, point_cloud_e_, normal_cloud_,
+    callback_(poses_, point_cloud_e_, normal_cloud_,
               constraints_);
     return ceres::SOLVER_CONTINUE;
   }
 
   const vector<double>& poses_;
-  const vector<vector2f>& point_cloud_g_;
   const PointCloudf& point_cloud_e_;
   const NormalCloudf& normal_cloud_;
   const vector<LTSConstraint*>& constraints_;
 
   void (*callback_)(
       const vector<double>& poses,
-      const vector<vector2f>& point_cloud_g,
       const PointCloudf& point_cloud_e,
       const NormalCloudf& normal_cloud,
       const vector<LTSConstraint*>& constraints);
@@ -239,7 +244,7 @@ void NonMarkovLocalization::FindVisualOdometryCorrespondences(
     const size_t min_poses, const size_t max_poses) {
   const float min_cosine_angle = cos(localization_options_.kMaxStfAngleError);
   const size_t poses_end = min(
-      static_cast<size_t>(max_poses + 1), point_clouds_g_.size());
+      static_cast<size_t>(max_poses + 1), point_clouds_e_.size());
   if (poses_end < min_poses + 1) return;
   vector<vector<PointToPointCorrespondence> > pose_correspondences(
       poses_end - min_poses - 1);
@@ -249,7 +254,7 @@ void NonMarkovLocalization::FindVisualOdometryCorrespondences(
     correspondence.source_pose = i;
     correspondence.target_pose = i + 1;
     Affine2f source_to_target_tf = RelativePoseTransform(i, i + 1);
-    for (size_t k = 0; k < point_clouds_g_[i].size(); ++k) {
+    for (size_t k = 0; k < point_clouds_e_[i].size(); ++k) {
       correspondence.source_point = k;
       const Vector2f point(source_to_target_tf * point_clouds_e_[i][k]);
       const Vector2f normal =
@@ -325,14 +330,14 @@ void NonMarkovLocalization::FindSTFCorrespondences(
   // const float kMaxPoseSqDistance = sq(100.0);
   static const int kPointMatchSeparation = 4;
   const size_t poses_end = min(
-      static_cast<size_t>(max_poses + 1), point_clouds_g_.size());
+      static_cast<size_t>(max_poses + 1), point_clouds_e_.size());
   CHECK_GT(pose_array_.size(), poses_end - 1);
   vector<vector<PointToPointGlobCorrespondence> > pose_point_correspondences(
       poses_end - min_poses);
   point_point_glob_correspondences_.clear();
   OMP_PARALLEL_FOR
   for (size_t i = min_poses; i < poses_end; ++i) {
-    vector<int> point_corrspondences(point_clouds_g_[i].size(), 0);
+    vector<int> point_corrspondences(point_clouds_e_[i].size(), 0);
     const Vector2f source_pose_location(
         pose_array_[3 * i], pose_array_[3 * i + 1]);
     const Rotation2Df source_pose_rotation(pose_array_[3 * i + 2]);
@@ -350,7 +355,7 @@ void NonMarkovLocalization::FindSTFCorrespondences(
       // if ((target_pose_location - source_pose_location).squaredNorm() >
       //     kMaxPoseSqDistance) continue;
       Affine2f source_to_target_tf = RelativePoseTransform(i, j);
-      for (size_t k = 0; k < point_clouds_g_[i].size();
+      for (size_t k = 0; k < point_clouds_e_[i].size();
            k += localization_options_.num_skip_readings) {
         // Ignore points that already have a valid correspondence: they do not
         // need to be considered as STF objects.
@@ -402,30 +407,32 @@ void NonMarkovLocalization::FindSTFCorrespondences(
 }
 
 void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
-    const vector<vector2f>& point_cloud,
+    const vector<Vector2f>& point_cloud,
     const vector<Vector2f>& normal_cloud,
     const double* pose_array,
     vector<int>* line_correspondences_ptr,
-    vector<line2f>* ray_cast_ptr,
+    vector<Line2f>* ray_cast_ptr,
     vector<ObservationType>* observation_classes_ptr) {
   vector<int>& line_correspondences = *line_correspondences_ptr;
-  vector<line2f>& ray_cast = *ray_cast_ptr;
+  vector<Line2f>& ray_cast = *ray_cast_ptr;
   vector<ObservationType>& observation_classes = * observation_classes_ptr;
-  const vector2f sensor_loc = vector2f(pose_array[0], pose_array[1]) +
-      vector2f(localization_options_.sensor_offset.x(),
-               localization_options_.sensor_offset.y()).rotate(pose_array[2]);
-  // const vector2f sensor_loc = vector2f(pose_array[0], pose_array[1]);
-  line_correspondences = vector_map_.getRayToLineCorrespondences(
-      sensor_loc, pose_array[2],
-      -M_PI + FLT_MIN, M_PI - FLT_MIN, point_cloud,
-      0.0, localization_options_.kMaxRange,
-      true, ray_cast_ptr);
+  const Vector2f sensor_loc = Vector2f(pose_array[0], pose_array[1]) +
+      Rotation2Df(pose_array[2]) *
+      Vector2f(localization_options_.sensor_offset.x(),
+               localization_options_.sensor_offset.y());
+  vector_map_.GetRayToLineCorrespondences(
+      sensor_loc,
+      pose_array[2],
+      point_cloud,
+      0.0,
+      localization_options_.kMaxRange,
+      ray_cast_ptr,
+      line_correspondences_ptr);
   CHECK_EQ(line_correspondences.size(), point_cloud.size());
   for (size_t j = 0; j < point_cloud.size(); ++j) {
     const int correspondence = line_correspondences[j];
     if (correspondence >= 0) {
-      const line2f& line = ray_cast[correspondence];
-      const Vector2f point(point_cloud[j].x, point_cloud[j].y);
+      const Line2f& line = ray_cast[correspondence];
       if (IsValidLTFCorrespondence(
           pose_array, point_cloud[j], normal_cloud[j], line)) {
         observation_classes[j] = kLtfObservation;
@@ -437,9 +444,9 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
 void NonMarkovLocalization::FindLTFCorrespondences(
   const size_t min_poses, const size_t max_poses) {
   static const bool debug = false;
-  point_line_correspondences_.resize(point_clouds_g_.size());
-  ray_cast_lines_.resize(point_clouds_g_.size());
-  const size_t num_poses = min(point_clouds_g_.size(), max_poses + 1);
+  point_line_correspondences_.resize(point_clouds_e_.size());
+  ray_cast_lines_.resize(point_clouds_e_.size());
+  const size_t num_poses = min(point_clouds_e_.size(), max_poses + 1);
   if (debug) printf("Finding map correspondences for poses %lu:%lu\n",
       min_poses, num_poses - 1);
   CHECK_GT(pose_array_.size(), num_poses * 3 - 1);
@@ -447,7 +454,7 @@ void NonMarkovLocalization::FindLTFCorrespondences(
   for (size_t i = min_poses; i < num_poses; ++i) {
     const size_t j = 3 * i;
     FindSinglePoseLtfCorrespondences(
-        point_clouds_g_[i], normal_clouds_e_[i], &(pose_array_[j]),
+        point_clouds_e_[i], normal_clouds_e_[i], &(pose_array_[j]),
         &(point_line_correspondences_[i]), &(ray_cast_lines_[i]),
         &(observation_classes_[i]));
   }
@@ -455,20 +462,22 @@ void NonMarkovLocalization::FindLTFCorrespondences(
 
 bool NonMarkovLocalization::IsValidLTFCorrespondence(
     const double* pose,
-    const vector2f& point,
+    const Vector2f& point,
     const Vector2f& normal,
-    const line2f& line) const {
-  const vector2f pose_location(pose[0], pose[1]);
-  const vector2f point_transformed = point.rotate(pose[2]) + pose_location;
-  const vector2f normal_transformed =
-      vector2f(normal.x(), normal.y()).rotate(pose[2]);
-  const bool angle_match = (fabs(line.Perp().dot(normal_transformed)) >
+    const Line2f& line) const {
+  const Vector2f pose_location(pose[0], pose[1]);
+  const Rotation2Df pose_rotation(pose[2]);
+  const Vector2f point_transformed =
+      pose_rotation * point + pose_location;
+  const Vector2f normal_transformed =
+      pose_rotation * normal;
+  const bool angle_match = (fabs(line.UnitNormal().dot(normal_transformed)) >
       cos(localization_options_.kMaxAngleError));
   if (!angle_match) return false;
-  const float dist_from_line =
-      line.closestDistFromLine(point_transformed, false);
-  if (line.Perp().dot(pose_location - line.P0()) *
-      line.Perp().dot(point_transformed - line.P0()) < 0.0f) {
+  const float dist_from_line = line.Distance(point_transformed);
+  const Vector2f n = line.UnitNormal();
+  if (n.dot(pose_location - line.p0) *
+      n.dot(point_transformed - line.p0) < 0.0f) {
     // Observations are on opposite sides of the line.
     return (dist_from_line < localization_options_.kMaxPointToLineDistance);
   }
@@ -477,7 +486,7 @@ bool NonMarkovLocalization::IsValidLTFCorrespondence(
 
 void NonMarkovLocalization::AddSinglePoseLTFConstraints(
     const size_t pose_index,
-    const vector<line2f>& ray_cast,
+    const vector<Line2f>& ray_cast,
     const vector<int>& correspondences,
     const vector<ObservationType>& observation_classes,
     const vector<Vector2f>& point_cloud,
@@ -494,10 +503,9 @@ void NonMarkovLocalization::AddSinglePoseLTFConstraints(
     if (observation_classes[j] == kLtfObservation) {
       const int& correspondence = correspondences[j];
       DCHECK_LT(correspondence, ray_cast.size());
-      const line2f& line = ray_cast[correspondence];
-      line_normals[j] = Vector2f(line.Perp().x, line.Perp().y);
-      const Vector2f line_p0(line.P0().x, line.P0().y);
-      line_offsets[j] = -line_normals[j].dot(line_p0);
+      const Line2f& line = ray_cast[correspondence];
+      line_normals[j] = line.UnitNormal();
+      line_offsets[j] = -line_normals[j].dot(line.p0);
     }
   }
   vector<bool> ltf_valid(observation_classes.size(), false);
@@ -549,8 +557,8 @@ void NonMarkovLocalization::AddLTFConstraints(
 }
 
 double NonMarkovLocalization::ObservationLikelihood(
-    const Pose2Df& pose, const PointCloudf& point_cloud_e,
-    const vector<vector2f>& point_cloud_g,
+    const Pose2Df& pose,
+    const PointCloudf& point_cloud_e,
     const NormalCloudf& normal_cloud) {
   double log_likelihood = 0.0;
   const Vector2f pose_location(pose.translation);
@@ -562,33 +570,31 @@ double NonMarkovLocalization::ObservationLikelihood(
     pose.angle
   };
   vector<int> line_correspondences;
-  vector<line2f> ray_cast;
-  vector<ObservationType> obs_classes(point_cloud_g.size(), kDfObservation);
+  vector<Line2f> ray_cast;
+  vector<ObservationType> obs_classes(point_cloud_e.size(), kDfObservation);
   FindSinglePoseLtfCorrespondences(
-      point_cloud_g, normal_cloud, pose_array,
+      point_cloud_e, normal_cloud, pose_array,
       &line_correspondences, &ray_cast, &obs_classes);
   static const double kCorrelationFactor = 0.05;
   static const double kObstacleWeight =
       -sq(1.0 / localization_options_.kLaserStdDev * kCorrelationFactor);
-  for (size_t j = 0; j < point_cloud_g.size(); ++j) {
+  for (size_t j = 0; j < point_cloud_e.size(); ++j) {
     const int correspondence = line_correspondences[j];
     if (correspondence < 0) {
       log_likelihood += kObstacleWeight;
       continue;
     }
-    const line2f& line = ray_cast[correspondence];
+    const Line2f& line = ray_cast[correspondence];
     const Vector2f& point = point_cloud_e[j];
     const Vector2f point_global = pose_transform * point;
-    const Vector2f line_normal(line.Perp().x, line.Perp().y);
-    const Vector2f line_dir(line.Dir().x, line.Dir().y);
-    const Vector2f line_p0(line.P0().x, line.P0().y);
-    const Vector2f line_p1(line.P1().x, line.P1().y);
-    const float line_offset = -line_normal.dot(line_p0);
+    const Vector2f line_dir = line.Dir();
+    const Vector2f line_normal = Perp(line_dir);
+    const float line_offset = -line_normal.dot(line.p0);
     const bool valid_correspondence =
-        (point_global - line_p0).dot(point_global - line_p1) < 0.0;
+        (point_global - line.p0).dot(point_global - line.p1) < 0.0;
     if (valid_correspondence) {
       LTSConstraint constraint(
-              0, point, line_normal, line_dir, line_p0, line_p1,
+              0, point, line_normal, line_dir, line.p0, line.p1,
               line_offset, localization_options_.kLaserStdDev,
               kCorrelationFactor);
       double residual = 0.0;
@@ -602,7 +608,7 @@ double NonMarkovLocalization::ObservationLikelihood(
 }
 
 void NonMarkovLocalization::SensorResettingResample(
-    const vector<vector2f>& point_cloud,
+    const vector<Vector2f>& point_cloud,
     const vector<Vector2f>& normal_cloud,
     const size_t num_samples,
     float radial_stddev,
@@ -610,7 +616,6 @@ void NonMarkovLocalization::SensorResettingResample(
     float angular_stddev,
     void (*callback)(
         const std::vector<double>& poses,
-        const std::vector<vector2f>& point_cloud_g,
         const PointCloudf& point_cloud_e,
         const NormalCloudf& normal_cloud,
         const vector<LTSConstraint*>& constraints),
@@ -624,25 +629,19 @@ void NonMarkovLocalization::SensorResettingResample(
   vector<double> pose_array;
   const Pose2Df latest_pose = GetLatestPose();
 
-  PointCloudf point_cloud_e(point_cloud.size());
-  OMP_PARALLEL_FOR
-  for (size_t i = 0; i < point_cloud_e.size(); ++i) {
-    point_cloud_e[i].x() = point_cloud[i].x;
-    point_cloud_e[i].y() = point_cloud[i].y;
-  }
-
   if (kSampleLocally) {
     pose_array.resize(3 * num_samples);
     poses.resize(num_samples);
     pose_weights.resize(num_samples);
     // Sample around the MLE.
-    OMP_PARALLEL_FOR
+    util_random::Random rand;
     for (size_t i = 0; i < num_samples; ++i) {
       poses[i] = latest_pose;
       const Vector2f random_translation = Rotation2Df(latest_pose.angle) *
-          Vector2f(randn<float>(radial_stddev), randn<float>(tangential_stddev));
-      const float random_rotation = randn<float>(angular_stddev);
-      poses[i].angle = angle_mod(poses[i].angle + random_rotation);
+          Vector2f(rand.Gaussian(0, radial_stddev),
+                   rand.Gaussian(0, tangential_stddev));
+      const float random_rotation = rand.Gaussian(0, angular_stddev);
+      poses[i].angle = AngleMod(poses[i].angle + random_rotation);
       poses[i].translation = poses[i].translation + random_translation;
       pose_array[3 * i + 0] = poses[i].translation.x();
       pose_array[3 * i + 1] = poses[i].translation.y();
@@ -651,7 +650,7 @@ void NonMarkovLocalization::SensorResettingResample(
   } else {
     static const float kWindowHalfWidth = 2.5;
     static const float kLengthResolution = 0.5;
-    static const float kAngularResolution = RAD(30.0);
+    static const float kAngularResolution = DegToRad(30.0);
     pose_array.clear();
     poses.clear();
     for (float x = latest_pose.translation.x() - kWindowHalfWidth;
@@ -679,7 +678,7 @@ void NonMarkovLocalization::SensorResettingResample(
   for (int i = 0; i < kNumIterations; ++i) {
     // Detect duplicate samples.
     static const float kMinLengthSeparation = 0.1;
-    static const float kMinAngularSeparation = RAD(10.0);
+    static const float kMinAngularSeparation = DegToRad(10.0);
     for (size_t j = 0; j < poses.size(); ++j) {
       const Vector2f p1(pose_array[3 * j], pose_array[3 * j + 1]);
       const float& a1 = pose_array[3 * j + 2];
@@ -687,7 +686,7 @@ void NonMarkovLocalization::SensorResettingResample(
         const Vector2f p2(pose_array[3 * k], pose_array[3 * k + 1]);
         const float& a2 = pose_array[3 * k + 2];
         const float length_separation = (p1 - p2).norm();
-        const float angular_separation = angle_dist(a1, a2);
+        const float angular_separation = AngleDist(a1, a2);
         if (angular_separation < kMinAngularSeparation &&
             length_separation < kMinLengthSeparation) {
           poses.erase(poses.begin() + k);
@@ -699,7 +698,7 @@ void NonMarkovLocalization::SensorResettingResample(
       }
     }
     // Evaluate the correspondences of the samples.
-    vector<vector<line2f> > ray_cast_lines(poses.size());
+    vector<vector<Line2f> > ray_cast_lines(poses.size());
     vector<vector<int> > line_correspondences(poses.size());
     vector<ObservationType> obs_classes(point_cloud.size(), kDfObservation);
     // OMP_PARALLEL_FOR
@@ -739,20 +738,18 @@ void NonMarkovLocalization::SensorResettingResample(
       for (size_t j = 0; j < point_cloud.size(); ++j) {
         const int correspondence = line_correspondences[k][j];
         if (correspondence < 0) continue;
-        const line2f& line = ray_cast_lines[k][correspondence];
-        const Vector2f point(point_cloud[j].x, point_cloud[j].y);
+        const Line2f& line = ray_cast_lines[k][correspondence];
+        const Vector2f& point = point_cloud[j];
         const Vector2f point_global = pose_transform * point;
-        const Vector2f line_normal(line.Perp().x, line.Perp().y);
-        const Vector2f line_dir(line.Dir().x, line.Dir().y);
-        const Vector2f line_p0(line.P0().x, line.P0().y);
-        const Vector2f line_p1(line.P1().x, line.P1().y);
-        const float line_offset = -line_normal.dot(line_p0);
+        const Vector2f line_dir = line.Dir();
+        const Vector2f line_normal = Perp(line_dir);
+        const float line_offset = -line_normal.dot(line.p0);
         const bool valid_correspondence =
-            (point_global - line_p0).dot(point_global - line_p1) < 0.0;
+            (point_global - line.p0).dot(point_global - line.p1) < 0.0f;
         if (true || valid_correspondence) {
           visibility_constraints.push_back(
               new LTSConstraint(
-                  k, point, line_normal, line_dir, line_p0, line_p1,
+                  k, point, line_normal, line_dir, line.p0, line.p1,
                   line_offset, localization_options_.kLaserStdDev,
                   kCorrelationFactor));
           problem.AddResidualBlock(
@@ -790,7 +787,7 @@ void NonMarkovLocalization::SensorResettingResample(
     poses[j].translation.y() = pose_array[3 * j + 1];
     poses[j].angle = pose_array[3 * j + 2];
     pose_weights[j] = ObservationLikelihood(
-        poses[j], point_cloud_e, point_cloud, normal_cloud);
+        poses[j], point_cloud, normal_cloud);
   }
 
 }
@@ -798,12 +795,12 @@ void NonMarkovLocalization::SensorResettingResample(
 void NonMarkovLocalization::AddVisibilityConstraints(
     const size_t min_poses, const size_t max_poses, ceres::Problem* problem) {
   visibility_constraints_.clear();
-  const size_t num_point_clouds = min(point_clouds_g_.size(), max_poses + 1);
+  const size_t num_point_clouds = min(point_clouds_e_.size(), max_poses + 1);
 
-  vector<VisibilityGlobConstraint*> constraints(point_clouds_g_.size());
+  vector<VisibilityGlobConstraint*> constraints(point_clouds_e_.size());
   OMP_PARALLEL_FOR
   for (size_t i = min_poses; i < num_point_clouds; ++i) {
-    const vector<vector2f>& point_cloud = point_clouds_g_[i];
+    const vector<Vector2f>& point_cloud = point_clouds_e_[i];
     const vector<Vector2f>& normal_cloud = normal_clouds_e_[i];
     const Vector2f pose_location(
         pose_array_[3 * i + 0], pose_array_[3 * i + 1]);
@@ -820,24 +817,22 @@ void NonMarkovLocalization::AddVisibilityConstraints(
       const int correspondence = point_line_correspondences_[i][j];
       if (correspondence < 0) continue;
       DCHECK_LT(correspondence, ray_cast_lines_[i].size());
-      const line2f& line = ray_cast_lines_[i][correspondence];
-      const Vector2f point(point_cloud[j].x, point_cloud[j].y);
+      const Line2f& line = ray_cast_lines_[i][correspondence];
+      const Vector2f& point = point_cloud[j];
       const Vector2f point_global = pose_transform * point;
       const Vector2f normal = pose_rotation * normal_cloud[j];
-      const Vector2f line_normal(line.Perp().x, line.Perp().y);
-      const Vector2f line_dir(line.Dir().x, line.Dir().y);
-      const Vector2f line_p0(line.P0().x, line.P0().y);
-      const Vector2f line_p1(line.P1().x, line.P1().y);
-      const float line_offset = -line_normal.dot(line_p0);
-      if (fabs(line_normal.dot(normal)) > cos(RAD(40.0)) &&
+      const Vector2f line_dir = line.Dir();
+      const Vector2f line_normal = Perp(line_dir);
+      const float line_offset = -line_normal.dot(line.p0);
+      if (fabs(line_normal.dot(normal)) > cos(DegToRad(40.0)) &&
           (line_normal.dot(pose_location) + line_offset) *
           (line_normal.dot(point_global) + line_offset) < -FLT_MIN &&
-          (LiesAlongLineSegment(line_p0, line_p1, point_global)) &&
-          (true || LiesAlongLineSegment(line_p0, line_p1, pose_location))) {
+          (LiesAlongLineSegment(line.p0, line.p1, point_global)) &&
+          (true || LiesAlongLineSegment(line.p0, line.p1, pose_location))) {
         if (kUseRelativeConstraints) {
           VisibilityRelativeConstraint* constraint =
               new VisibilityRelativeConstraint(
-                  i, point, line_normal, line_dir, line_p0, line_p1,
+                  i, point, line_normal, line_dir, line.p0, line.p1,
                   line_offset, localization_options_.kLaserStdDev,
                   localization_options_.kVisibilityCorrelationFactor);
           DynamicAutoDiffCostFunction<VisibilityRelativeConstraint,
@@ -854,8 +849,8 @@ void NonMarkovLocalization::AddVisibilityConstraints(
         } else {
           points.push_back(point);
           line_normals.push_back(line_normal);
-          line_p0s.push_back(line_p0);
-          line_p1s.push_back(line_p1);
+          line_p0s.push_back(line.p0);
+          line_p1s.push_back(line.p1);
           line_offsets.push_back(line_offset);
         }
       }
@@ -894,7 +889,7 @@ void NonMarkovLocalization::AddPoseConstraints(
     if (fabs(translation.x()) < kEpsilon && fabs(translation.y()) < kEpsilon) {
       radial_direction = Vector2f(cos(poses[i].angle), sin(poses[i].angle));
       tangential_direction = Vector2f(Rotation2Df(M_PI_2) * radial_direction);
-      rotation = angle_mod(poses[i].angle - poses[i-1].angle);
+      rotation = AngleMod(poses[i].angle - poses[i-1].angle);
       axis_transform.block<1, 2>(0, 0) = radial_direction.transpose();
       axis_transform.block<1, 2>(1, 0) = tangential_direction.transpose();
       radial_translation = 0.0;
@@ -902,24 +897,24 @@ void NonMarkovLocalization::AddPoseConstraints(
       radial_direction = Vector2f(
           (Rotation2Df(-poses[i - 1].angle) * translation).normalized());
       tangential_direction = Vector2f(Rotation2Df(M_PI_2) * radial_direction);
-      rotation = angle_mod(poses[i].angle - poses[i-1].angle);
+      rotation = AngleMod(poses[i].angle - poses[i-1].angle);
       axis_transform.block<1, 2>(0, 0) = radial_direction.transpose();
       axis_transform.block<1, 2>(1, 0) = tangential_direction.transpose();
       radial_translation = translation.norm();
     }
-    const float radial_std_dev = bound<float>(
-        localization_options_.kOdometryRadialStdDevRate * radial_translation,
+    const float radial_std_dev = Bound<float>(
         localization_options_.kOdometryTranslationMinStdDev,
-        localization_options_.kOdometryTranslationMaxStdDev);
-    const float tangential_std_dev = bound<float>(
+        localization_options_.kOdometryTranslationMaxStdDev,
+        localization_options_.kOdometryRadialStdDevRate * radial_translation);
+    const float tangential_std_dev = Bound<float>(
+        localization_options_.kOdometryTranslationMinStdDev,
+        localization_options_.kOdometryTranslationMaxStdDev,
         localization_options_.kOdometryTangentialStdDevRate *
-        radial_translation,
-        localization_options_.kOdometryTranslationMinStdDev,
-        localization_options_.kOdometryTranslationMaxStdDev);
-    const float angular_std_dev = bound<float>(
-        localization_options_.kOdometryAngularStdDevRate * fabs(rotation),
+        radial_translation);
+    const float angular_std_dev = Bound<float>(
         localization_options_.kOdometryAngularMinStdDev,
-        localization_options_.kOdometryAngularMaxStdDev);
+        localization_options_.kOdometryAngularMaxStdDev,
+        localization_options_.kOdometryAngularStdDevRate * fabs(rotation));
     if (debug) {
       printf("Adding pose constraint %d:%d @ 0x%lx : 0x%lx\n",
              static_cast<int>(i - 1), static_cast<int>(i),
@@ -946,29 +941,6 @@ void NonMarkovLocalization::AddPoseConstraints(
           new PoseConstraint(axis_transform, radial_std_dev, tangential_std_dev,
                             angular_std_dev, radial_translation, rotation)),
           NULL, &(pose_array_[3 * i - 3]), &(pose_array_[3 * i]));
-    }
-  }
-}
-
-void NonMarkovLocalization::ConvertPointCloud(
-    const PointCloudf& point_cloud, vector<vector2f>* point_cloud_converted_ptr)
-    const {
-  vector<vector2f>& point_cloud_converted = *point_cloud_converted_ptr;
-  point_cloud_converted.resize(point_cloud.size());
-  for (size_t j = 0; j < point_cloud.size(); ++j) {
-    point_cloud_converted[j] =
-      vector2f(point_cloud[j].x(), point_cloud[j].y());
-  }
-}
-
-void NonMarkovLocalization::ConvertPointClouds(
-  const vector<PointCloudf>& point_clouds) {
-  point_clouds_g_.resize(point_clouds.size());
-  for (size_t i = 0; i < point_clouds.size(); ++i) {
-    const PointCloudf& point_cloud = point_clouds[i];
-    point_clouds_g_[i].resize(point_cloud.size());
-    for (size_t j = 0; j < point_cloud.size(); ++j) {
-      point_clouds_g_[i][j] = vector2f(point_cloud[j].x(), point_cloud[j].y());
     }
   }
 }
@@ -1004,7 +976,7 @@ void NonMarkovLocalization::ResetGlobalPoses(
   for (size_t i = start; i <= end; ++i) {
     const Vector2f& p0 = poses[i - 1].translation;
     const Vector2f& p1 = poses[i].translation;
-    const double dr = angle_mod(poses[i].angle - poses[i - 1].angle);
+    const double dr = AngleMod(poses[i].angle - poses[i - 1].angle);
     const Vector2f dp = Rotation2Df(-poses[i - 1].angle) * (p1 - p0);
     const Vector2f p1_new =
         Vector2f(pose_array_[3 * (i - 1) + 0], pose_array_[3 * (i - 1) + 1]) +
@@ -1020,20 +992,20 @@ bool NonMarkovLocalization::BatchLocalize(
     const string& map_name,
     const vector<PointCloudf>& point_clouds,
     const vector<NormalCloudf>& normal_clouds,
-    const bool debug, const bool return_initial_poses,
+    const bool debug,
+    const bool return_initial_poses,
     vector<Pose2Df>* poses,
     vector<vector<ObservationType> >* classifications) {
   static const bool kDebugConvergence = true;
   ScopedFile fid(NULL);
   if (kDebugConvergence) fid.Open("results/enml_convergence_steps.txt", "w");
   CHECK_EQ(poses->size(), point_clouds.size());
-  vector_map_.loadMap(map_name.c_str(), true);
+  vector_map_.Load(map_name.c_str());
   localization_options_ = localization_options;
 
   point_clouds_e_ = point_clouds;
-  // Make a copy of the point clouds in vector2f format for ray casting
+  // Make a copy of the point clouds in Vector2f format for ray casting
   // with VectorMap.
-  ConvertPointClouds(point_clouds_e_);
   normal_clouds_e_ = normal_clouds;
 
   // Build KD Trees for every pose.
@@ -1058,7 +1030,7 @@ bool NonMarkovLocalization::BatchLocalize(
 
   vector<bool> pose_calculated(poses->size(), false);
   vector<Pose2Df> initial_poses(poses->begin(), poses->end());
-  size_t max_poses = min(kPoseIncrement, point_clouds_g_.size() - 1);
+  size_t max_poses = min(kPoseIncrement, point_clouds_e_.size() - 1);
   size_t min_poses = max(0, static_cast<int>(max_poses) -
       localization_options_.kMaxHistory);
   for (int i = 0; !terminate_; ++i) {
@@ -1068,7 +1040,7 @@ bool NonMarkovLocalization::BatchLocalize(
       printf("Finding correspondences\n");
     } else {
       printf("\rBatch localization iteration %d, poses %lu:%lu of %lu",
-             i, min_poses, max_poses, point_clouds_g_.size());
+             i, min_poses, max_poses, point_clouds_e_.size());
       fflush(stdout);
     }
     ResetObservationClasses(min_poses, max_poses);
@@ -1096,7 +1068,7 @@ bool NonMarkovLocalization::BatchLocalize(
     vector<Matrix2f> covariances;
     if (localization_options_.CorrespondenceCallback != NULL) {
       localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_g_, normal_clouds_e_, ray_cast_lines_,
+          pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
           point_line_correspondences_, point_point_glob_correspondences_,
           observation_classes_, visibility_constraints_,
           gradients, covariances, *poses, min_poses, max_poses);
@@ -1171,15 +1143,15 @@ bool NonMarkovLocalization::BatchLocalize(
             if (!pose_calculated[i]) {
               initial_poses[i].translation.x() = pose_array_[j + 0];
               initial_poses[i].translation.y() = pose_array_[j + 1];
-              initial_poses[i].angle = angle_mod(pose_array_[j + 2]);
+              initial_poses[i].angle = AngleMod(pose_array_[j + 2]);
               pose_calculated[i] = true;
             }
           }
         }
-        if (max_poses == point_clouds_g_.size() - 1) break;
+        if (max_poses == point_clouds_e_.size() - 1) break;
         max_poses = min(
             static_cast<unsigned int>(max_poses + kPoseIncrement),
-            static_cast<unsigned int>(point_clouds_g_.size() - 1));
+            static_cast<unsigned int>(point_clouds_e_.size() - 1));
         min_poses = max(0, static_cast<int>(max_poses) -
             localization_options_.kMaxHistory);
       }
@@ -1187,7 +1159,7 @@ bool NonMarkovLocalization::BatchLocalize(
     if (num_iterations > localization_options_.kMaxRepeatIterations) {
       if (localization_options_.CorrespondenceCallback != NULL) {
         localization_options_.CorrespondenceCallback(
-            pose_array_, point_clouds_g_, normal_clouds_e_, ray_cast_lines_,
+            pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
             point_line_correspondences_, point_point_glob_correspondences_,
             observation_classes_, visibility_constraints_,
             gradients, covariances, *poses, min_poses, max_poses);
@@ -1200,7 +1172,7 @@ bool NonMarkovLocalization::BatchLocalize(
           if (!pose_calculated[i]) {
             initial_poses[i].translation.x() = pose_array_[j + 0];
             initial_poses[i].translation.y() = pose_array_[j + 1];
-            initial_poses[i].angle = angle_mod(pose_array_[j + 2]);
+            initial_poses[i].angle = AngleMod(pose_array_[j + 2]);
             pose_calculated[i] = true;
           }
         }
@@ -1210,10 +1182,10 @@ bool NonMarkovLocalization::BatchLocalize(
                            poses->size() - 1),
                        *poses);
       // if (max_poses + kPoseIncrement > point_clouds_.size() - 1) break;
-      if (max_poses == point_clouds_g_.size() - 1) break;
+      if (max_poses == point_clouds_e_.size() - 1) break;
       max_poses = min(
         static_cast<unsigned int>(max_poses + kPoseIncrement),
-                      static_cast<unsigned int>(point_clouds_g_.size() - 1));
+                      static_cast<unsigned int>(point_clouds_e_.size() - 1));
       min_poses = max(0, static_cast<int>(max_poses) -
           localization_options_.kMaxHistory);
     }
@@ -1225,7 +1197,7 @@ bool NonMarkovLocalization::BatchLocalize(
   }
 
   if (debug) {
-    printf("Optimized %d poses.\n", static_cast<int>(point_clouds_g_.size()));
+    printf("Optimized %d poses.\n", static_cast<int>(point_clouds_e_.size()));
   } else {
     // To clear the cursor of the line used to display progress.
     printf("\n");
@@ -1238,7 +1210,7 @@ bool NonMarkovLocalization::BatchLocalize(
       const int j = 3 * i;
       (*poses)[i].translation.x() = pose_array_[j + 0];
       (*poses)[i].translation.y() = pose_array_[j + 1];
-      (*poses)[i].angle = angle_mod(pose_array_[j + 2]);
+      (*poses)[i].angle = AngleMod(pose_array_[j + 2]);
     }
   }
   pose_array_.clear();
@@ -1295,9 +1267,9 @@ void NonMarkovLocalization::Update() {
 
   int repeat_iterations = 0;
   const size_t min_poses = 0;
-  const size_t max_poses = point_clouds_g_.size() - 1;
+  const size_t max_poses = point_clouds_e_.size() - 1;
   ResetObservationClasses(min_poses, max_poses);
-  if (point_clouds_g_.size() < 2) return;
+  if (point_clouds_e_.size() < 2) return;
   // Copy over the unoptimized poses.
   for (size_t i = 0; i < poses_.size(); ++i) {
     const int j = 3 * i;
@@ -1403,7 +1375,7 @@ void NonMarkovLocalization::Update() {
     }
     if (localization_options_.CorrespondenceCallback != NULL) {
       localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_g_, normal_clouds_e_, ray_cast_lines_,
+          pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
           point_line_correspondences_, point_point_glob_correspondences_,
           observation_classes_, visibility_constraints_,
           gradients, covariances, poses_, min_poses, max_poses);
@@ -1423,7 +1395,7 @@ void NonMarkovLocalization::Update() {
     const int j = 3 * i;
     poses_[i].translation.x() = pose_array_[j + 0];
     poses_[i].translation.y() = pose_array_[j + 1];
-    poses_[i].angle = angle_mod(pose_array_[j + 2]);
+    poses_[i].angle = AngleMod(pose_array_[j + 2]);
   }
   // Trim non-Markov episode.
   const int episode_start = FindEpisodeStart();
@@ -1462,7 +1434,7 @@ void NonMarkovLocalization::CountConstraints(
     size_t* num_ltf_constraints_ptr) {
   size_t& num_points = *num_points_ptr;
   size_t& num_ltf_constraints = *num_ltf_constraints_ptr;
-  num_points = point_clouds_g_[node_index].size();
+  num_points = point_clouds_e_[node_index].size();
   num_ltf_constraints = 0;
   for (size_t i = 0; i < num_points; ++i) {
     if (observation_classes_[node_index][i] == kLtfObservation) {
@@ -1531,9 +1503,9 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
   poses_.erase(poses_.begin(), poses_.begin() + pose_index);
   kdtrees_.erase(kdtrees_.begin(), kdtrees_.begin() + pose_index);
   normal_clouds_e_.erase(normal_clouds_e_.begin(),
-                          normal_clouds_e_.begin() + pose_index);
-  point_clouds_g_.erase(point_clouds_g_.begin(),
-                        point_clouds_g_.begin() + pose_index);
+                         normal_clouds_e_.begin() + pose_index);
+  point_clouds_e_.erase(point_clouds_e_.begin(),
+                        point_clouds_e_.begin() + pose_index);
   observation_classes_.erase(observation_classes_.begin(),
                              observation_classes_.begin() + pose_index);
   point_clouds_e_.erase(point_clouds_e_.begin(),
@@ -1548,7 +1520,7 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
 void NonMarkovLocalization::SensorUpdate(
     const PointCloudf& point_cloud, const NormalCloudf& normal_cloud) {
   static const bool debug = false;
-  const double t_now = GetTimeSec();
+  const double t_now = GetMonotonicTime();
   const bool has_moved =
       (pending_rotation_ > 0.0 && pending_translation_ > 0.0);
   const bool force_update = has_moved &&
@@ -1561,7 +1533,7 @@ void NonMarkovLocalization::SensorUpdate(
     t_last_update_ = t_now;
   } else if (debug) {
     printf("Ignoring sensor data, trans:%f rot:%f\n",
-           pending_translation_, DEG(pending_rotation_));
+           pending_translation_, RadToDeg(pending_rotation_));
   }
 }
 
@@ -1569,7 +1541,7 @@ void NonMarkovLocalization::OdometryUpdate(
     const float dx, const float dy, const float d_theta) {
   const Vector2f delta(dx, dy);
   pending_relative_pose_.angle =
-      angle_mod(pending_relative_pose_.angle + d_theta);
+      AngleMod(pending_relative_pose_.angle + d_theta);
   const Rotation2Df rotation(pending_relative_pose_.angle);
   pending_relative_pose_.translation += (rotation * delta);
   pending_translation_ += delta.norm();
@@ -1581,7 +1553,6 @@ void NonMarkovLocalization::ClearPoses() {
   poses_.clear();
   pose_ids_.clear();
   point_clouds_e_.clear();
-  point_clouds_g_.clear();
   normal_clouds_e_.clear();
   observation_classes_.clear();
   kdtrees_.clear();
@@ -1642,11 +1613,8 @@ void NonMarkovLocalization::AddPendingPoseNodes()
 
   // Add converted point clouds and copy of pose array.
   pose_array_.resize(point_clouds_e_.size() * 3);
-  point_clouds_g_.resize(point_clouds_e_.size());
   OMP_PARALLEL_FOR
   for (size_t i = 0; i < num_new_point_clouds; ++i) {
-    ConvertPointCloud(pending_point_clouds_e_[i],
-                      &point_clouds_g_[num_old_point_clouds + i]);
     const size_t pose_array_offset = 3 * (num_old_point_clouds + i);
     const Pose2Df& pose = poses_[num_old_point_clouds + i];
     pose_array_[pose_array_offset + 0] = pose.translation.x();
@@ -1655,7 +1623,6 @@ void NonMarkovLocalization::AddPendingPoseNodes()
   }
 
   CHECK_EQ(pose_ids_.size(), point_clouds_e_.size());
-  CHECK_EQ(point_clouds_e_.size(), point_clouds_g_.size());
   pending_point_clouds_e_.clear();
   pending_normal_clouds_e_.clear();
   pending_relative_poses_.clear();
@@ -1745,13 +1712,13 @@ void NonMarkovLocalization::Initialize(const Pose2Df& pose,
   ScopedLock lock(update_mutex_);
   ClearPoses();
   latest_mle_pose_.Set(pose);
-  if (map_name != vector_map_.mapName) {
-    vector_map_.loadMap(map_name.c_str(), true);
+  if (map_name != vector_map_.file_name) {
+    vector_map_.Load(map_name);
   }
 }
 
 string NonMarkovLocalization::GetCurrentMapName() const {
-  return (vector_map_.mapName);
+  return (vector_map_.file_name);
 }
 
 bool NonMarkovLocalization::RunningSolver() const {

@@ -29,12 +29,13 @@
 #include <vector>
 
 #include "ceres/ceres.h"
-#include "geometry.h"
+#include "new_shared/math/geometry.h"
+#include "new_shared/math/line2d.h"
 #include "kdtree.h"
 #include "perception_2d.h"
 #include "pthread_utils.h"
 #include "sensor_msgs/LaserScan.h"
-#include "vector_map.h"
+#include "vector_map/vector_map.h"
 
 namespace vector_localization {
 
@@ -137,9 +138,9 @@ class NonMarkovLocalization {
     Eigen::Vector2f sensor_offset;
     void (*CorrespondenceCallback)(
       const std::vector<double>& poses,
-      const std::vector<std::vector<vector2f> >& point_clouds,
+      const std::vector<perception_2d::PointCloudf>& point_clouds,
       const std::vector<perception_2d::NormalCloudf>& normal_clouds,
-      const std::vector<std::vector<line2f> >& ray_cast_lines,
+      const std::vector<std::vector<geometry::Line2f> >& ray_cast_lines,
       const std::vector<std::vector<int> >& point_line_correspondences,
       const std::vector<PointToPointGlobCorrespondence>&
           point_point_correspondences,
@@ -170,7 +171,8 @@ class NonMarkovLocalization {
                         point_clouds,
                      const std::vector<perception_2d::NormalCloudf>&
                         normal_clouds,
-                     const bool debug, const bool return_initial_poses,
+                     const bool debug,
+                     const bool return_initial_poses,
                      std::vector<perception_2d::Pose2Df>* poses,
                      std::vector<std::vector<ObservationType> >*
                         classifications);
@@ -230,15 +232,14 @@ class NonMarkovLocalization {
 
   // Sample around the MLE and check if the estimate can be corrected by SRL.
   void SensorResettingResample(
-      const std::vector<vector2f>& point_cloud,
-      const std::vector<Eigen::Vector2f>& normal_cloud,
+      const perception_2d::PointCloudf& point_cloud,
+      const perception_2d::NormalCloudf& normal_cloud,
       const std::size_t num_samples,
       float radial_stddev,
       float tangential_stddev,
       float angular_stddev,
       void (*callback)(
           const std::vector<double>& poses,
-          const std::vector<vector2f>& point_cloud_g,
           const perception_2d::PointCloudf& point_cloud_e,
           const perception_2d::NormalCloudf& normal_cloud,
           const std::vector<vector_localization::LTSConstraint*>& constraints),
@@ -250,7 +251,6 @@ class NonMarkovLocalization {
   // from the specified pose.
   double ObservationLikelihood(const perception_2d::Pose2Df& pose,
                                const perception_2d::PointCloudf& point_cloud,
-                               const std::vector<vector2f>& point_cloud_g,
                                const perception_2d::NormalCloudf& normal_cloud);
 
  private:
@@ -265,11 +265,11 @@ class NonMarkovLocalization {
   // results of the correspondence matching will be stored in the member
   // variables ray_cast_lines_ and point_line_correspondences_.
   void FindSinglePoseLtfCorrespondences(
-      const std::vector<vector2f>& point_cloud,
-      const std::vector<Eigen::Vector2f>& normal_cloud,
+      const perception_2d::PointCloudf& point_cloud,
+      const perception_2d::NormalCloudf& normal_cloud,
       const double* pose_array,
       std::vector<int>* line_correspondences_ptr,
-      std::vector<line2f>* ray_cast_ptr,
+      std::vector<geometry::Line2f>* ray_cast_ptr,
       std::vector<ObservationType>* observation_classes);
 
   // Find point to map LTF correspondences for every point from every pose.
@@ -294,10 +294,10 @@ class NonMarkovLocalization {
   // Add a single point to map LTF constraint.
   void AddSinglePoseLTFConstraints(
       const std::size_t pose_index,
-      const std::vector<line2f>& ray_cast,
+      const std::vector<geometry::Line2f>& ray_cast,
       const std::vector<int>& correspondences,
       const std::vector<ObservationType>& observation_classes,
-      const std::vector<Eigen::Vector2f>& point_cloud,
+      const perception_2d::PointCloudf& point_cloud,
       double* pose_array,
       std::vector<PointToLineConstraint*>* constraints,
       ceres::Problem* problem);
@@ -359,18 +359,9 @@ class NonMarkovLocalization {
   // Returns true iff the @point observed by the robot at @pose has a valid
   // LTF correspondence to @line.
   bool IsValidLTFCorrespondence(const double* pose,
-                                const vector2f& point,
+                                const Eigen::Vector2f& point,
                                 const Eigen::Vector2f& normal,
-                                const line2f& line) const;
-
-  // Make a copy of a single point cloud in vector2f format
-  void ConvertPointCloud(const perception_2d::PointCloudf& point_cloud,
-                         std::vector<vector2f>* point_cloud_converted) const;
-
-  // Make a copy of the point clouds in vector2f format for ray casting
-  // with VectorMap.
-  void ConvertPointClouds(
-      const std::vector<perception_2d::PointCloudf >& point_clouds);
+                                const geometry::Line2f& line) const;
 
   // Buld KD Trees for every pose with the provided @point_clouds and
   // @normal_clouds.
@@ -460,7 +451,7 @@ class NonMarkovLocalization {
   bool terminate_;
 
   // The vector map on which localization is being performed.
-  VectorMap vector_map_;
+  vector_map::VectorMap vector_map_;
 
   // The accumulated translation and rotation of the robot since the last pose
   // node.
@@ -473,9 +464,6 @@ class NonMarkovLocalization {
   // The sum of the magnitude of rotations of the robot since the the last
   // pose node.
   float pending_rotation_;
-
-  // Point clouds for every pose node, in GVector::vector2f format.
-  std::vector<std::vector<vector2f> > point_clouds_g_;
 
   // Point clouds for every pose node, in Eigen::Vector2f format.
   std::vector<perception_2d::PointCloudf> point_clouds_e_;
@@ -497,7 +485,7 @@ class NonMarkovLocalization {
 
   // List of lines visible from each pose as determined by performing analytic
   // ray casting on the map using the latest pose estimates.
-  std::vector<std::vector<line2f> > ray_cast_lines_;
+  std::vector<std::vector<geometry::Line2f> > ray_cast_lines_;
 
   // List of correspondences between each point in the point clouds, and
   // the corresponding list of visible lines as stored in @ray_cast_lines.
