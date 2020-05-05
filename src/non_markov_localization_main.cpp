@@ -17,6 +17,8 @@
 //
 // Main entry point for non-Markov localization.
 
+#include <execinfo.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -45,12 +47,12 @@
 #include "ros/package.h"
 #include "rosbag/bag.h"
 #include "rosbag/view.h"
-#include "shared/math/geometry.h"
-#include "shared/util/configreader.h"
+#include "new_shared/math/geometry.h"
+#include "new_shared/math/math_util.h"
+#include "new_shared/util/timer.h"
 #include "sensor_msgs/LaserScan.h"
-#include "timer.h"
 #include "util.h"
-#include "vector_map.h"
+#include "vector_map/vector_map.h"
 #include "residual_functors.h"
 #include "gui_publisher_helper.h"
 #include "enml/LidarDisplayMsg.h"
@@ -88,6 +90,10 @@ using std::sort;
 using std::string;
 using std::vector;
 using vector_localization::NonMarkovLocalization;
+using vector_map::VectorMap;
+
+using namespace geometry;
+using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
 
@@ -125,7 +131,7 @@ string kMapName;
 // Robot's starting location.
 Vector2f kStartingLocation = Vector2f(-9.0, 42.837);
 // Robot's starting angle.
-float kStartingAngle = RAD(-165.0);
+float kStartingAngle = DegToRad(-165.0);
 // Uncertainty of translation in the direction of travel.
 float kRadialTranslationUncertainty = 0.05;
 // Uncertainty of translation perpendicular to the direction of travel.
@@ -147,7 +153,7 @@ bool kStandardizedData = false;
 // The maximum expected odometry-reported translation difference per timestep.
 float kSqMaxOdometryDeltaLoc = sq(0.2);
 // The maximum expected odometry-reported rotation difference per timestep.
-float kMaxOdometryDeltaAngle = RAD(15.0);
+float kMaxOdometryDeltaAngle = DegToRad(15.0);
 // Mutex to ensure only a single relocalization call is made at a time.
 pthread_mutex_t relocalization_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
@@ -207,12 +213,6 @@ char* episode_images_path = NULL;
 // Determines whether STFS will be saved for later object mapping or not.
 bool save_stfs_ = false;
 
-// WatchFiles to track changes to config files.
-WatchFiles watch_files_;
-
-// Config reader for localization options.
-ConfigReader config_("");
-
 // Corrections to angle-dependent errors of the laser scanner.
 vector<float> laser_corrections_;
 
@@ -242,7 +242,7 @@ void ApplyNoiseModel(
   const float R = 0.1;
   Eigen::Matrix<float, 4, 3> M_vel_to_enc;
   Eigen::Matrix<float, 3, 4> M_enc_to_vel;
-  const float C = cos(RAD(45.0));
+  const float C = cos(DegToRad(45.0));
   M_vel_to_enc <<
       C, C, R,
       -C, C, R,
@@ -272,7 +272,7 @@ void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
   printf("TODO: %s\n", __FUNCTION__);
 //   enml::CobotLocalizationMsg localization_msg_;
-//   localization_msg_.timeStamp = GetTimeSec();
+//   localization_msg_.timeStamp = GetWallTime();
 //   localization_msg_.map = map_name;
 //   localization_msg_.x = x;
 //   localization_msg_.y = y;
@@ -284,7 +284,7 @@ void PublishLocation() {
   printf("TODO: %s\n", __FUNCTION__);
 //   Pose2Df latest_pose = localization_.GetLatestPose();
 //   enml::CobotLocalizationMsg localization_msg_;
-//   localization_msg_.timeStamp = GetTimeSec();
+//   localization_msg_.timeStamp = GetWallTime();
 //   localization_msg_.map = localization_.GetCurrentMapName();
 //   localization_msg_.x = latest_pose.translation.x();
 //   localization_msg_.y = latest_pose.translation.y();
@@ -295,26 +295,26 @@ void PublishLocation() {
 void PublishTrace()
 {
   Pose2Df latest_pose = localization_.GetLatestPose();
-  static vector<vector2f> trace;
-  static vector2f lastLoc;
+  static vector<Vector2f> trace;
+  static Vector2f lastLoc;
   static bool initialized = false;
-  const vector2f curLoc(
+  const Vector2f curLoc(
         latest_pose.translation.x(), latest_pose.translation.y());
   if(!initialized){
     trace.clear();
     trace.push_back(curLoc);
     lastLoc = curLoc;
-    if(lastLoc.sqlength()>sq(5.0))
+    if(lastLoc.squaredNorm()>sq(5.0))
       initialized = true;
     return;
   }
-  if((curLoc-lastLoc).sqlength()>sq(0.05)){
+  if((curLoc-lastLoc).squaredNorm()>sq(0.05)){
     trace.push_back(curLoc);
     lastLoc = curLoc;
   }
 
   for(unsigned int i=0; i<trace.size()-1;i++){
-    if((trace[i]-trace[i+1]).sqlength()>1.0)
+    if((trace[i]-trace[i+1]).squaredNorm()>1.0)
       continue;
     DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, &display_message_);
   }
@@ -363,16 +363,21 @@ void nonblock(const bool blocking) {
 }
 
 bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
-  if (!config_.readFiles()) return false;
-
   #define ENML_FLOAT_CONFIG(x) \
       CONFIG_FLOAT(x, "enml."#x)
-
+  #define ENML_INT_CONFIG(x) \
+      CONFIG_INT(x, "enml."#x)
+  #define ENML_UINT_CONFIG(x) \
+      CONFIG_UINT(x, "enml."#x)
+  #define ENML_BOOL_CONFIG(x) \
+      CONFIG_BOOL(x, "enml."#x)
+  #define ENML_STRING_CONFIG(x) \
+      CONFIG_STRING(x, "enml."#x)
   ENML_FLOAT_CONFIG(starting_loc_x);
   ENML_FLOAT_CONFIG(starting_loc_y);
   ENML_FLOAT_CONFIG(starting_angle);
   ENML_FLOAT_CONFIG(radial_translation_uncertainty);
-  ENML_FLOAT_CONFIG(tangential_translation_uncertainty);  
+  ENML_FLOAT_CONFIG(tangential_translation_uncertainty);
   ENML_FLOAT_CONFIG(angle_uncertainty);
   ENML_FLOAT_CONFIG(odometry_translation_scale);
   ENML_FLOAT_CONFIG(odometry_rotation_scale);
@@ -381,37 +386,93 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(min_point_cloud_range);
   ENML_FLOAT_CONFIG(max_point_cloud_range);
   ENML_FLOAT_CONFIG(max_normal_point_distance);
-  
+
+  ENML_FLOAT_CONFIG(robot_laser_offset_x);
+  ENML_FLOAT_CONFIG(robot_laser_offset_y);
+  ENML_FLOAT_CONFIG(min_rotation);
+  ENML_FLOAT_CONFIG(min_translation);
+  ENML_INT_CONFIG(max_correspondences_per_point);
+  ENML_FLOAT_CONFIG(max_point_to_line_distance);
+  ENML_FLOAT_CONFIG(laser_std_dev);
+  ENML_FLOAT_CONFIG(map_correlation_factor);
+  ENML_FLOAT_CONFIG(point_correlation_factor);
+  ENML_FLOAT_CONFIG(odometry_radial_stddev_rate);
+  ENML_FLOAT_CONFIG(odometry_tangential_stddev_rate);
+  ENML_FLOAT_CONFIG(odometry_angular_stddev_rate);
+  ENML_FLOAT_CONFIG(odometry_translation_min_stddev);
+  ENML_FLOAT_CONFIG(odometry_translation_max_stddev);
+  ENML_FLOAT_CONFIG(odometry_rotation_min_stddev);
+  ENML_FLOAT_CONFIG(odometry_rotation_max_stddev);
+  ENML_FLOAT_CONFIG(point_match_threshold);
+  ENML_FLOAT_CONFIG(max_stf_angle_error);
+  ENML_FLOAT_CONFIG(max_angle_error);
+  ENML_INT_CONFIG(pose_increment);
+  ENML_INT_CONFIG(max_history);
+  ENML_FLOAT_CONFIG(map_huber_loss);
+  ENML_INT_CONFIG(max_solver_iterations);
+  ENML_INT_CONFIG(max_repeat_iterations);
+  ENML_INT_CONFIG(num_repeat_iterations);
+  ENML_FLOAT_CONFIG(min_ltf_ratio);
+  ENML_UINT_CONFIG(min_episode_length);
+  ENML_UINT_CONFIG(num_threads);
+  ENML_BOOL_CONFIG(use_visibility_constraints);
+  ENML_FLOAT_CONFIG(visibility_correlation_factor);
+  ENML_UINT_CONFIG(num_skip_readings);
+  ENML_FLOAT_CONFIG(max_update_period);
+  ENML_STRING_CONFIG(map_name);
+  options->minimum_node_translation = CONFIG_min_translation;
+  options->minimum_node_rotation = CONFIG_min_rotation;
+  options->max_update_period = CONFIG_max_update_period;
+  options->kMinRange = CONFIG_min_point_cloud_range;
+  options->kMaxRange = CONFIG_max_point_cloud_range;
+  options->kMaxPointToLineDistance = CONFIG_max_point_to_line_distance;
+  options->kPointMapCorrelationFactor = CONFIG_map_correlation_factor;
+  options->kPointPointCorrelationFactor = CONFIG_point_correlation_factor;
+  options->kOdometryRadialStdDevRate = CONFIG_odometry_radial_stddev_rate;
+  options->kOdometryTangentialStdDevRate = CONFIG_odometry_tangential_stddev_rate;
+  options->kOdometryAngularStdDevRate = CONFIG_odometry_angular_stddev_rate;
+  options->kOdometryTranslationMinStdDev = CONFIG_odometry_translation_min_stddev;
+  options->kOdometryTranslationMaxStdDev = CONFIG_odometry_translation_max_stddev;
+  options->kOdometryAngularMinStdDev = CONFIG_odometry_rotation_min_stddev;
+  options->kOdometryAngularMaxStdDev = CONFIG_odometry_rotation_max_stddev;
+  options->kPointMatchThreshold = CONFIG_point_match_threshold;
+  options->kMaxAngleError = CONFIG_max_angle_error;
+  options->kMapHuberLossThreshold = CONFIG_map_huber_loss;
+  options->kLaserStdDev = CONFIG_laser_std_dev;
+  options->kMinLtfRatio = CONFIG_min_ltf_ratio;
+  options->kMaxStfAngleError = CONFIG_max_stf_angle_error;
+  options->num_skip_readings = CONFIG_num_skip_readings;
+  options->kMinEpisodeLength = CONFIG_min_episode_length;
+  options->kMaxRepeatIterations = CONFIG_max_repeat_iterations;
+  options->kNumRepeatIterations = CONFIG_num_repeat_iterations;
+  options->kMaxCorrespondencesPerPoint = CONFIG_max_correspondences_per_point;
+  options->kNumThreads = CONFIG_num_threads;
+  options->kPoseIncrement = CONFIG_pose_increment;
+  options->kMaxHistory = CONFIG_max_history;
+  options->max_solver_iterations = CONFIG_max_solver_iterations;
+  options->use_visibility_constraints = CONFIG_use_visibility_constraints;
+  options->kVisibilityCorrelationFactor = CONFIG_visibility_correlation_factor;
+  options->sensor_offset = Vector2f(
+      CONFIG_robot_laser_offset_x, CONFIG_robot_laser_offset_y);
   config_reader::ConfigReader reader({
       "config/common.lua",
       "config/enml.lua"});
-  kSqMaxOdometryDeltaLoc = sq(kSqMaxOdometryDeltaLoc);
-
-  ConfigReader::SubTree c(config_,"NonMarkovLocalization");
-  bool error = false;
-  error = error || !c.getReal("starting_location.x", kStartingLocation.x());
-  error = error || !c.getReal("starting_location.y", kStartingLocation.y());
-  error = error || !c.getReal("starting_angle", kStartingAngle);
-  error = error || !c.getReal("radial_translation_uncertainty",
-                              kRadialTranslationUncertainty);
-  error = error || !c.getReal("tangential_translation_uncertainty",
-                              kTangentialTranslationUncertainty);
-  error = error || !c.getReal("angle_uncertainty", kAngleUncertainty);
-  error = error || !c.getReal("odometry_translation_scale",
-                              kOdometryTranslationScale);
-  error = error || !c.getReal("odometry_rotation_scale",
-                              kOdometryRotationScale);
-  error = error || !c.getReal("max_odometry_delta_loc",
-                              kSqMaxOdometryDeltaLoc);
-  kSqMaxOdometryDeltaLoc = sq(kSqMaxOdometryDeltaLoc);
-  error = error || !c.getReal("max_odometry_delta_angle",
-                              kMaxOdometryDeltaAngle);
-  error = error || !c.getReal("min_point_cloud_range", kMinPointCloudRange);
-  error = error || !c.getReal("max_point_cloud_range", kMaxPointCloudRange);
-  error = error || !c.getReal("max_normal_point_distance",
-                              kMaxNormalPointDistance);
+  kStartingLocation = Vector2f(CONFIG_starting_loc_x, CONFIG_starting_loc_y);
+  kStartingAngle = CONFIG_starting_angle;
+  kRadialTranslationUncertainty = CONFIG_radial_translation_uncertainty;
+  kTangentialTranslationUncertainty = CONFIG_tangential_translation_uncertainty;
+  kAngleUncertainty = CONFIG_angle_uncertainty;
+  kOdometryTranslationScale = CONFIG_odometry_translation_scale;
+  kOdometryRotationScale = CONFIG_odometry_rotation_scale;
+  kSqMaxOdometryDeltaLoc = Sq(CONFIG_max_odometry_delta_loc);
+  kMaxOdometryDeltaAngle = CONFIG_max_odometry_delta_angle;
+  kMinPointCloudRange = CONFIG_min_point_cloud_range;
+  kMaxPointCloudRange = CONFIG_max_point_cloud_range;
+  kMaxNormalPointDistance = CONFIG_max_normal_point_distance;
+  kMapName = CONFIG_map_name;
+  
 #ifdef NDEBUG
-  error = error || !c.getInt("num_threads", options->kNumThreads);
+  options->kNumThreads = CONFIG_num_threads;
 #else
   options->kNumThreads = 1;
 #endif
@@ -419,74 +480,41 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   options->kMinRange = kMinPointCloudRange;
   options->kMaxRange = kMaxPointCloudRange;
 
-  error = error || !c.getReal("robot_laser_offset.x",
-                              options->sensor_offset.x());
-  error = error || !c.getReal("robot_laser_offset.y",
-                              options->sensor_offset.y());
-  error = error || !c.getReal("min_rotation", options->minimum_node_rotation);
-  error = error || !c.getReal("min_translation",
-                              options->minimum_node_translation);
-  error = error || !c.getInt("max_correspondences_per_point",
-                             options->kMaxCorrespondencesPerPoint);
-  error = error || !c.getReal("max_point_to_line_distance",
-                              options->kMaxPointToLineDistance);
-  error = error || !c.getReal("laser_std_dev",
-                              options->kLaserStdDev);
-  error = error || !c.getReal("map_correlation_factor",
-                              options->kPointMapCorrelationFactor);
-  error = error || !c.getReal("point_correlation_factor",
-                              options->kPointPointCorrelationFactor);
-  error = error || !c.getReal("odometry_radial_stddev_rate",
-                              options->kOdometryRadialStdDevRate);
-  error = error || !c.getReal("odometry_tangential_stddev_rate",
-                              options->kOdometryTangentialStdDevRate);
-  error = error || !c.getReal("odometry_angular_stddev_rate",
-                              options->kOdometryAngularStdDevRate);
-  error = error || !c.getReal("odometry_translation_min_stddev",
-                              options->kOdometryTranslationMinStdDev);
-  error = error || !c.getReal("odometry_translation_max_stddev",
-                              options->kOdometryTranslationMaxStdDev);
-  error = error || !c.getReal("odometry_rotation_min_stddev",
-                              options->kOdometryAngularMinStdDev);
-  error = error || !c.getReal("odometry_rotation_max_stddev",
-                              options->kOdometryAngularMaxStdDev);
-  error = error || !c.getReal("point_match_threshold",
-                              options->kPointMatchThreshold);
-  error = error || !c.getReal("max_stf_angle_error",
-                              options->kMaxStfAngleError);
-  error = error || !c.getReal("max_angle_error",
-                              options->kMaxAngleError);
-  error = error || !c.getInt("pose_increment",
-                              options->kPoseIncrement);
-  error = error || !c.getInt("max_history",
-                             options->kMaxHistory);
-  error = error || !c.getReal("map_huber_loss",
-                              options->kMapHuberLossThreshold);
-  error = error || !c.getInt("max_solver_iterations",
-                             options->max_solver_iterations);
-  error = error || !c.getInt("max_repeat_iterations",
-                             options->kMaxRepeatIterations);
-  error = error || !c.getInt("num_repeat_iterations",
-                             options->kNumRepeatIterations);
-  error = error || !c.getReal("min_ltf_ratio",
-                              options->kMinLtfRatio);
-  error = error || !c.getUInt("min_episode_length",
-                              options->kMinEpisodeLength);
-  error = error || !c.getBool("use_visibility_constraints",
-                              options->use_visibility_constraints);
-  error = error || !c.getReal("visibility_correlation_factor",
-                              options->kVisibilityCorrelationFactor);
-  error = error || !c.getUInt("num_skip_readings",
-                             options->num_skip_readings);
-  error = error || !c.getReal("max_update_period",
-                              options->max_update_period);
-  const char* map_name_lua = c.getStr("map_name");
-  if (map_name_lua != NULL) {
-    kMapName = string(map_name_lua);
-  } else {
-    error = true;
-  }
-  return !error;
+  ENML_FLOAT_CONFIG(point_map_correlation_factor);
+  ENML_FLOAT_CONFIG(point_point_correlation_factor);
+  options->sensor_offset.x() = CONFIG_robot_laser_offset_x;
+  options->sensor_offset.y() = CONFIG_robot_laser_offset_y;
+  options->minimum_node_rotation = CONFIG_min_rotation;
+  options->minimum_node_translation = CONFIG_min_translation;
+  options->kMaxCorrespondencesPerPoint = CONFIG_max_correspondences_per_point;
+  options->kMaxPointToLineDistance = CONFIG_max_point_to_line_distance;
+  options->kLaserStdDev = CONFIG_laser_std_dev;
+  options->kPointMapCorrelationFactor = CONFIG_point_map_correlation_factor;
+  options->kPointPointCorrelationFactor = CONFIG_point_point_correlation_factor;
+  options->kOdometryRadialStdDevRate = CONFIG_odometry_radial_stddev_rate;
+  options->kOdometryTangentialStdDevRate = CONFIG_odometry_tangential_stddev_rate;
+  options->kOdometryAngularStdDevRate = CONFIG_odometry_angular_stddev_rate;
+  options->kOdometryTranslationMinStdDev = CONFIG_odometry_translation_min_stddev;
+  options->kOdometryTranslationMaxStdDev = CONFIG_odometry_translation_max_stddev;
+  options->kOdometryAngularMinStdDev = CONFIG_odometry_rotation_min_stddev;
+  options->kOdometryAngularMaxStdDev = CONFIG_odometry_rotation_max_stddev;
+  options->kPointMatchThreshold = CONFIG_point_match_threshold;
+  options->kMaxStfAngleError = CONFIG_max_stf_angle_error;
+  options->kMaxAngleError = CONFIG_max_angle_error;
+  options->kPoseIncrement = CONFIG_pose_increment;
+  options->kMaxHistory = CONFIG_max_history;
+  options->kMapHuberLossThreshold = CONFIG_map_huber_loss;
+  options->max_solver_iterations = CONFIG_max_solver_iterations;
+  options->kMaxRepeatIterations = CONFIG_max_repeat_iterations;
+  options->kNumRepeatIterations = CONFIG_num_repeat_iterations;
+  options->kMinLtfRatio = CONFIG_min_ltf_ratio;
+  options->kMinEpisodeLength = CONFIG_min_episode_length;
+  options->use_visibility_constraints = CONFIG_use_visibility_constraints;
+  options->kVisibilityCorrelationFactor = CONFIG_visibility_correlation_factor;
+  options->num_skip_readings = CONFIG_num_skip_readings;
+  options->max_update_period = CONFIG_max_update_period;
+  
+  return true;
 }
 
 void SaveStfs(
@@ -500,12 +528,12 @@ void SaveStfs(
     double timestamp) {
   static const bool kSaveAllObservations = true;
   static const bool kDisplaySteps = false;
-  static const float kMaxMapLineOffset = 0.2;
+  // static const float kMaxMapLineOffset = 0.2;
   const string stfs_file = bag_file + ".stfs";
   ScopedFile fid(stfs_file, "w");
   fprintf(fid(), "%s\n", map_name.c_str());
   fprintf(fid(), "%lf\n", timestamp);
-  VectorMap map(map_name, kMapsDirectory, true);
+  VectorMap map(kMapsDirectory + "/" + map_name + ".txt");
   if (kDisplaySteps) {
     ClearDrawingMessage(&display_message_);
     nonblock(true);
@@ -514,8 +542,9 @@ void SaveStfs(
     const Rotation2Df pose_rotation(poses[i].angle);
     const Affine2f pose_transform =
         Translation2f(poses[i].translation) * pose_rotation;
-    const vector<int>& visibility_list = *map.getVisibilityList(
-        poses[i].translation.x(), poses[i].translation.y());
+    CHECK(false) << "ERROR: Unimplemented " << __FILE__ << ":" << __LINE__;
+    // const vector<int>& visibility_list = *map.getVisibilityList(
+    //     poses[i].translation.x(), poses[i].translation.y());
     for (unsigned int j = 0; j < point_clouds[i].size(); ++j) {
       const Vector2f p = pose_transform * point_clouds[i][j];
       if (kDisplaySteps) {
@@ -529,22 +558,23 @@ void SaveStfs(
         continue;
       }
       if (!kSaveAllObservations) {
-        const vector2f p_g(p.x(), p.y());
-        bool map_match = false;
-        for (size_t l = 0; !map_match && l < visibility_list.size(); ++l) {
-          const float line_offset =
-              map.Line(visibility_list[l]).closestDistFromLine(p_g, false);
-          const bool along_line =
-              (p_g - map.Line(visibility_list[l]).P0()).dot(
-              p_g - map.Line(visibility_list[l]).P1()) < 0.0;
-          map_match = along_line && line_offset < kMaxMapLineOffset;
-        }
-        if (map_match) {
-          if (kDisplaySteps) {
-            DrawPoint(p, kLtfPointColor, &display_message_);
-          }
-          continue;
-        }
+        CHECK(false) << "ERROR: Unimplemented " << __FILE__ << ":" << __LINE__;
+        // const Vector2f p_g(p.x(), p.y());
+        // bool map_match = false;
+        // for (size_t l = 0; !map_match && l < visibility_list.size(); ++l) {
+        //   const float line_offset =
+        //       map.Line(visibility_list[l]).closestDistFromLine(p_g, false);
+        //   const bool along_line =
+        //       (p_g - map.Line(visibility_list[l]).P0()).dot(
+        //       p_g - map.Line(visibility_list[l]).P1()) < 0.0;
+        //   map_match = along_line && line_offset < kMaxMapLineOffset;
+        // }
+        // if (map_match) {
+        //   if (kDisplaySteps) {
+        //     DrawPoint(p, kLtfPointColor, &display_message_);
+        //   }
+        //   continue;
+        // }
       }
       const Vector2f n = pose_rotation * normal_clouds[i][j];
       fprintf(fid(), "%.4f,%.4f,%.4f, %.4f,%.4f, %.4f,%.4f\n",
@@ -686,7 +716,7 @@ void SaveEpisodeStats(FILE* fid) {
 void DisplayDebug() {
   static const bool debug = false;
   static Pose2Df last_pose_(0, 0, 0);
-  static double t_last = GetTimeSec();
+  static double t_last = GetMonotonicTime();
   vector<Pose2Df> poses;
   vector<uint64_t> pose_ids;
   vector<PointCloudf> point_clouds;
@@ -720,10 +750,10 @@ void DisplayDebug() {
            static_cast<int>(observation_classes.size()));
     return;
   }
-  if (debug_level_ < 1 && GetTimeSec() < t_last + 0.5) {
+  if (debug_level_ < 1 && GetMonotonicTime() < t_last + 0.5) {
     return;
   }
-  t_last = GetTimeSec();
+  t_last = GetMonotonicTime();
   const int skip_scans = (debug_level_ < 1) ? 8 : 2;
   ClearDrawingMessage(&display_message_);
   if (debug || debug_level_ > 1) {
@@ -823,7 +853,7 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
   }
   if (debug) {
     printf("Relative pose: %6.3f, %6.3f %4.1f\u00b0\n", relative_location.x(),
-        relative_location.y(), DEG(relative_angle));
+        relative_location.y(), DegToRad(relative_angle));
   }
   // Update global pose
   global_location = Rotation2Df(global_angle) * relative_location +
@@ -848,8 +878,8 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
         !std::isfinite(laser_message->ranges[i])) continue;
     const float angle = laser_message->angle_min +
         laser_message->angle_increment * static_cast<float>(i);
-    if (angle < laser_message->angle_min + RAD(15.0) ||
-        angle > laser_message->angle_max - RAD(15.0)) continue;
+    if (angle < laser_message->angle_min + DegToRad(15.0) ||
+        angle > laser_message->angle_max - DegToRad(15.0)) continue;
     float range = laser_message->ranges[i];
     if (use_laser_corrections_) {
       const int angle_index =
@@ -968,7 +998,7 @@ bool LoadOdometryMessage(const rosbag::MessageInstance& message,
 //           delta);
 //       *relative_angle = *relative_angle +
 //           kOdometryRotationScale *  odometry_message->dr;
-//           //- angle_mod(fabs(odometry_message->dr)) / RAD(5.0) * RAD(1.0);
+//           //- angle_mod(fabs(odometry_message->dr)) / DegToRad(5.0) * DegToRad(1.0);
 //       return true;
 //     }
   }
@@ -1127,7 +1157,7 @@ void DrawVisibilityConstraints(
 void DrawStfs(
     const vector<NonMarkovLocalization::PointToPointGlobCorrespondence>&
     point_point_correspondences, const vector<double>& poses,
-    const vector<vector< vector2f> >& point_clouds,
+    const vector<vector< Vector2f> >& point_clouds,
     const std::vector< NormalCloudf >& normal_clouds) {
   for (size_t i = 0; i < point_point_correspondences.size(); ++i) {
     const int pose_index0 = point_point_correspondences[i].pose_index0;
@@ -1151,23 +1181,22 @@ void DrawStfs(
 
 void DrawLtfs(
     const size_t start_pose, const size_t end_pose,
-    const vector<double>& poses, const vector<vector< vector2f> >& point_clouds,
+    const vector<double>& poses, const vector<vector< Vector2f> >& point_clouds,
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications,
-    const vector<vector<line2f> >& ray_cast_lines,
+    const vector<vector<Line2f> >& ray_cast_lines,
     const vector<vector<int> >& point_line_correspondences) {
   for (size_t i = start_pose; i <= end_pose; ++i) {
-    const vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
+    const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     const float pose_angle = poses[3 * i + 2];
     for (size_t j = 0; j < point_clouds[i].size(); ++j) {
       if (classifications[i][j] != NonMarkovLocalization::kLtfObservation) {
         continue;
       }
-      const vector2f& point =
-          point_clouds[i][j].rotate(pose_angle) + pose_location;
+      const Vector2f& point = Rotation2Df(pose_angle) * point_clouds[i][j] + pose_location;
       const int correspondence = point_line_correspondences[i][j];
-      const line2f& line = ray_cast_lines[i][correspondence];
-      const vector2f point_projected = line.point_projection(point);
+      const Line2f& line = ray_cast_lines[i][correspondence];
+      const Vector2f point_projected = line.Projection(point);
       DrawLine(point, point_projected, kLtfCorrespondenceColor,
               &display_message_);
     }
@@ -1177,19 +1206,21 @@ void DrawLtfs(
 void DrawObservations(
     const size_t start_pose, const size_t end_pose,
     const vector<double>& poses,
-    const vector<vector< vector2f> >& point_clouds,
+    const vector<vector< Vector2f> >& point_clouds,
     const std::vector< NormalCloudf >& normal_clouds,
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications) {
   static const bool kDisplayTangents = false;
   for (size_t i = start_pose; i <= end_pose; ++i) {
-    const vector<vector2f> &point_cloud = point_clouds[i];
+    const vector<Vector2f> &point_cloud = point_clouds[i];
     const vector<Vector2f> &normal_cloud = normal_clouds[i];
-    const vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
+    const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     const float pose_angle = poses[3 * i + 2];
     const Rotation2Df pose_rotation(pose_angle);
+    const Affine2f pose_transform = 
+        Translation2f(pose_location) * pose_rotation;
     for (size_t j = 0; j < point_cloud.size(); ++j) {
-      const vector2f& point = point_cloud[j].rotate(pose_angle) + pose_location;
+      const Vector2f point = pose_transform * point_cloud[j];
       uint32_t point_color = 0xF0C0C0C0;
       switch (classifications[i][j]) {
         case NonMarkovLocalization::kLtfObservation : {
@@ -1206,9 +1237,9 @@ void DrawObservations(
       }
       if (kDisplayTangents) {
         const Vector2f normal_e = pose_rotation * normal_cloud[j];
-        const vector2f normal(normal_e.x(), normal_e.y());
-        const vector2f tangent = 0.05 * normal.perp();
-        DrawLine(
+        const Vector2f normal(normal_e.x(), normal_e.y());
+        const Vector2f tangent = 0.05 * Perp(normal);
+        DrawLine<float>(
             point + tangent, point - tangent, point_color, &display_message_);
       }
       DrawPoint(point, point_color, &display_message_);
@@ -1232,7 +1263,7 @@ void DrawGradients(
 }
 
 void DrawPoseCovariance(const Vector2f& pose, const Matrix2f& covariance) {
-  static const float kDTheta = RAD(15.0);
+  static const float kDTheta = DegToRad(15.0);
   Eigen::SelfAdjointEigenSolver<Matrix2f> solver;
   solver.compute(covariance);
   const Matrix2f eigenvectors = solver.eigenvectors();
@@ -1277,13 +1308,13 @@ void DrawPoses(const size_t start_pose, const size_t end_pose,
 
 void DrawRayCasts(
     const size_t start_pose, const size_t end_pose,
-    const vector<vector<line2f> >& ray_cast_lines,
+    const vector<vector<Line2f> >& ray_cast_lines,
     const vector<double>& poses) {
   const uint32_t colour = 0xFFCF8D00;
   for (size_t i = start_pose; i <= end_pose; ++i) {
-    const vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
+    const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     for (size_t j = 0; j < ray_cast_lines[i].size(); ++j) {
-      DrawLine(ray_cast_lines[i][j].P0(), ray_cast_lines[i][j].P1(),
+      DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
                colour, &display_message_);
       /*
       DrawLine(pose_location, ray_cast_lines[i][j].P0(),
@@ -1347,9 +1378,9 @@ void DrawFactorGraph(
 
 void CorrespondenceCallback(
     const vector<double>& poses,
-    const vector<vector< vector2f> >& point_clouds,
+    const vector<vector< Vector2f> >& point_clouds,
     const vector< NormalCloudf >& normal_clouds,
-    const vector<vector<line2f> >& ray_cast_lines,
+    const vector<vector<Line2f> >& ray_cast_lines,
     const vector<vector<int> >& point_line_correspondences,
     const vector<NonMarkovLocalization::PointToPointGlobCorrespondence>&
         point_point_correspondences,
@@ -1430,45 +1461,39 @@ void SaveSensorErrors(
     const vector<PointCloudf>& point_clouds,
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications) {
-  VectorMap map(kMapName, kMapsDirectory, true);
+  VectorMap map(kMapsDirectory + "/" + kMapName + ".txt");
   ScopedFile fid("results/sensor_errors.txt", "w");
   printf("Saving sensor errors... ");
   fflush(stdout);
   ClearDrawingMessage(&display_message_);
-  const vector2f laser_loc(
+  const Vector2f laser_loc(
       localization_options_.sensor_offset.x(),
       localization_options_.sensor_offset.y());
   for (size_t i = 0; i < poses.size(); ++i) {
     const PointCloudf& point_cloud = point_clouds[i];
-    const vector2f pose_loc_g =
-        vector2f(poses[i].translation.x(), poses[i].translation.y()) +
-        laser_loc.rotate(poses[i].angle);
-    vector<vector2f> point_cloud_g(point_cloud.size());
+    const Vector2f pose_loc_g =
+        poses[i].translation + Rotation2Df(poses[i].angle) * laser_loc;
+    vector<Vector2f> point_cloud_g(point_cloud.size());
     for (size_t j = 0; j < point_cloud.size(); ++j) {
-      point_cloud_g[j] = vector2f(point_cloud[j].x(), point_cloud[j].y());
+      point_cloud_g[j] = Vector2f(point_cloud[j].x(), point_cloud[j].y());
     }
-    vector<line2f> ray_cast;
-    const vector<int> line_correspondences = map.getRayToLineCorrespondences(
-        pose_loc_g, poses[i].angle,
-        -M_PI + FLT_MIN, M_PI - FLT_MIN, point_cloud_g,
-        0.0, localization_options_.kMaxRange,
-        true, &ray_cast);
+    PointCloudf predicted_point_cloud;
+    map.GetPredictedPointCloud(pose_loc_g, 0.01, localization_options_.kMaxRange, point_cloud_g, &predicted_point_cloud); 
+    const Affine2f pose_tf = Translation2f(pose_loc_g) * Rotation2Df(poses[i].angle);
     for (size_t j = 0; j < point_cloud_g.size(); ++j) {
-      const vector2f observed_point =
-          point_cloud_g[j].rotate(poses[i].angle) + pose_loc_g;
+      const Vector2f observed_point = pose_tf * point_cloud_g[j];
+      const Vector2f expected_point = predicted_point_cloud[j];
+      const float observed_range = (point_cloud_g[j] - laser_loc).norm();
+      const float expected_range = (expected_point - pose_loc_g).norm();
+      const bool not_expected = expected_range >= localization_options_.kMaxRange;
       if (classifications[i][j] != NonMarkovLocalization::kLtfObservation ||
-          line_correspondences[j] < 0) {
+          not_expected) {
         continue;
       }
-      const line2f& line = ray_cast[line_correspondences[j]];
-      const vector2f expected_point = line.intersection(
-          pose_loc_g, observed_point, true, true);
       DrawPoint(expected_point, 0xFFFF0000, &display_message_);
       DrawPoint(observed_point, 0x4FFF7700, &display_message_);
       DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, &display_message_);
-      const float angle = point_cloud_g[j].angle();
-      const float observed_range = (point_cloud_g[j] - laser_loc).length();
-      const float expected_range = (expected_point - pose_loc_g).length();
+      const float angle = atan2(point_cloud_g[j].y(), point_cloud_g[j].x());
       fprintf(fid(), "%.4f %.4f %.4f\n", angle, expected_range, observed_range);
     }
   }
@@ -1499,7 +1524,7 @@ void BatchLocalize(const string& bag_file, const string& keyframes_file,
     // Reset localization_gui to correct map.
     printf("TODO: %s\n", __FUNCTION__);
 //     enml::CobotLocalizationMsg localization_msg_;
-//     localization_msg_.timeStamp = GetTimeSec();
+//     localization_msg_.timeStamp = GetWallTime();
 //     localization_msg_.map = kMapName;
 //     localization_msg_.x = 0;
 //     localization_msg_.y = 0;
@@ -1513,12 +1538,12 @@ void BatchLocalize(const string& bag_file, const string& keyframes_file,
     return;
   }
 
-  const double t_start = GetTimeSec();
+  const double t_start = GetMonotonicTime();
   localization_.BatchLocalize(localization_options_, kMapName, point_clouds,
                               normal_clouds, (debug_level_ > 1),
                               return_initial_poses, &poses, &classifications);
 
-  const double process_time = GetTimeSec() - t_start;
+  const double process_time = GetMonotonicTime() - t_start;
   printf("Done in %.3fs, bag time %.3fs (%.3fx).\n",
          process_time, bag_duration, bag_duration / process_time);
   ClearDrawingMessage(&display_message_);
@@ -1551,7 +1576,7 @@ void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
   float d_theta = angle_diff<float>(new_theta, old_theta);
   if (debug_level_ > 1) {
     printf("Standard Odometry %f %f %f, t=%f\n",
-           p_delta.x(), p_delta.y(), DEG(d_theta),
+           p_delta.x(), p_delta.y(), DegToRad(d_theta),
            odometry_msg.header.stamp.toSec());
   }
   if (test_set_index_ >= 0 || statistical_test_index_ >= 0) {
@@ -1580,8 +1605,8 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
         !std::isfinite(laser_message.ranges[i])) continue;
     const float angle = laser_message.angle_min +
         laser_message.angle_increment * static_cast<float>(i);
-    if (angle < laser_message.angle_min + RAD(15.0) ||
-        angle > laser_message.angle_max - RAD(15.0)) continue;
+    if (angle < laser_message.angle_min + DegToRad(15.0) ||
+        angle > laser_message.angle_max - DegToRad(15.0)) continue;
     float range = laser_message.ranges[i];
     point_cloud.push_back(localization_options_.sensor_offset +
         Rotation2Df(angle) * Vector2f(range, 0.0));
@@ -1709,7 +1734,6 @@ float CheckLaserOverlap(const sensor_msgs::LaserScan& scan1,
 
 void SRLVisualize(
     const vector<double>& poses,
-    const vector<vector2f>& point_cloud_g,
     const PointCloudf& point_cloud_e,
     const NormalCloudf& normal_cloud,
     const vector<vector_localization::LTSConstraint*>& constraints) {
@@ -1721,7 +1745,7 @@ void SRLVisualize(
   for (size_t i = 0; i < num_samples; ++i) {
     const Pose2Df pose(poses[3 * i + 2], poses[3 * i + 0], poses[3 * i + 1]);
     pose_weights[i] = localization_.ObservationLikelihood(
-        pose, point_cloud_e, point_cloud_g, normal_cloud);
+        pose, point_cloud_e, normal_cloud);
     if (pose_weights[i] > max_weight) {
       max_weight = pose_weights[i];
       best_pose = i;
@@ -1765,7 +1789,7 @@ void SRLVisualize(
 void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
   printf("SRL with laser t=%f\n", laser_message.header.stamp.toSec());
   PointCloudf point_cloud_e;
-  vector<vector2f> point_cloud_g;
+  vector<Vector2f> point_cloud_g;
   for (size_t i = 0; i < laser_message.ranges.size(); ++i) {
     if (laser_message.ranges[i] < kMinPointCloudRange ||
         laser_message.ranges[i] > kMaxPointCloudRange ||
@@ -1775,7 +1799,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
     point_cloud_e.push_back(localization_options_.sensor_offset +
         Rotation2Df(angle) * Vector2f(laser_message.ranges[i], 0.0));
     point_cloud_g.push_back(
-        vector2f(point_cloud_e.back().x(), point_cloud_e.back().y()));
+        Vector2f(point_cloud_e.back().x(), point_cloud_e.back().y()));
   }
   NormalCloudf normal_cloud;
   GenerateNormals(kMaxNormalPointDistance, &point_cloud_e, &normal_cloud);
@@ -1786,7 +1810,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
   static const size_t kNumSamples = 500;
   static const float kTangentialStdDev = 0.3;
   static const float kRadialStdDev = 0.3;
-  static const float kAngularStdDev = RAD(20.0);
+  static const float kAngularStdDev = DegToRad(20.0);
   printf("Running SRL...");
   fflush(stdout);
   localization_.SensorResettingResample(
@@ -1808,8 +1832,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
     pose_array[3 * i + 1] = poses[i].translation.y();
     pose_array[3 * i + 2] = poses[i].angle;
   }
-  SRLVisualize(pose_array, point_cloud_g, point_cloud_e, normal_cloud,
-               constraints);
+  SRLVisualize(pose_array, point_cloud_e, normal_cloud, constraints);
 }
 
 void InteractivePause() {
@@ -1853,7 +1876,7 @@ void PlayBagFile(const string& bag_file,
   rosbag::Bag bag;
   if (!quiet_) printf("Processing bag file %s\n", bag_file.c_str());
   bag.open(bag_file.c_str(), rosbag::bagmode::Read);
-  const double t_start = GetTimeSec();
+  const double t_start = GetMonotonicTime();
 
   std::vector<std::string> topics;
   if (use_kinect_) {
@@ -1974,7 +1997,7 @@ void PlayBagFile(const string& bag_file,
         if (!quiet_ && debug_level_ > 0) {
           printf("Initializing location to %s: %f,%f, %f\u00b0\n",
                  init_map.c_str(), init_location.x(), init_location.y(),
-                 DEG(init_angle));
+                 DegToRad(init_angle));
         }
         const Pose2Df init_pose(init_angle, init_location.x(),
                                 init_location.y());
@@ -1984,7 +2007,7 @@ void PlayBagFile(const string& bag_file,
     }
   }
   localization_.Finalize();
-  const double process_time = GetTimeSec() - t_start;
+  const double process_time = GetMonotonicTime() - t_start;
   const double bag_duration = bag_time - bag_time_start;
   const vector<Pose2Df> logged_poses = localization_.GetLoggedPoses();
   const vector<int> episode_lengths = localization_.GetLoggedEpisodeLengths();
@@ -2033,15 +2056,24 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
       ClearDrawingMessage(&display_message_);
       DisplayDebug();
     }
-    if (watch_files_.getEvents() != 0) {
-      printf("Reloading parameters.\n");
-      if (config_.isFileModified())
-        printf("config modified\n");
-      CHECK(LoadConfiguration(&localization_options_));
-      localization_.SetOptions(localization_options_);
-      watch_files_.clearEvents();
-    }
+    // TODO: Handle dynamic reloading of config.
     ros::spinOnce();
+  }
+}
+
+void PrintBackTrace(FILE* file) {
+  void *trace[16];
+  char **messages = (char **)NULL;
+  int i, trace_size = 0;
+
+  trace_size = backtrace(trace, 16);
+  messages = backtrace_symbols(trace, trace_size);
+  fprintf(file, "Stack Trace:\n");
+  for (i=1; i<trace_size; ++i) {
+    fprintf(file, "#%d %s\n", i - 1, messages[i]);
+    std::string addr2line_command =
+        StringPrintf("addr2line %p -e /proc/%d/exe", trace[i], getpid());
+    fprintf(file, "%s", ExecuteCommand(addr2line_command.c_str()).c_str());
   }
 }
 
@@ -2115,8 +2147,7 @@ int main(int argc, char** argv) {
   int c;
   while((c = popt.getNextOpt()) >= 0){
   }
-  config_.init(watch_files_);
-  config_.addFile("config/non_markov_localization.cfg");
+  
   CHECK(LoadConfiguration(&localization_options_));
 
   // if (bag_file == NULL) unique_node_name = true;
@@ -2130,7 +2161,7 @@ int main(int argc, char** argv) {
   const string node_name =
       (running_tests || unique_node_name) ?
       StringPrintf("NonMarkovLocalization_%lu",
-                   static_cast<uint64_t>(GetTimeSec() * 1000000.0)) :
+                   static_cast<uint64_t>(GetWallTime() * 1000000.0)) :
       string("NonMarkovLocalization");
   ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   ros::NodeHandle ros_node;
