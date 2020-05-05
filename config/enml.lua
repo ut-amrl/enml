@@ -7,7 +7,7 @@ RobotConfig = {
 };
 
 enml = {
-  map_name = "LGRC3";
+  map_name = "GDC3";
   starting_loc_x = 47.016267;
   starting_loc_y = 30.034157;
   starting_angle = deg2rad(180.0);

@@ -387,8 +387,8 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(max_point_cloud_range);
   ENML_FLOAT_CONFIG(max_normal_point_distance);
 
-  ENML_FLOAT_CONFIG(robot_laser_offset_x);
-  ENML_FLOAT_CONFIG(robot_laser_offset_y);
+  CONFIG_FLOAT(robot_laser_offset_x, "enml.robot_laser_offset.x");
+  CONFIG_FLOAT(robot_laser_offset_y, "enml.robot_laser_offset.y");
   ENML_FLOAT_CONFIG(min_rotation);
   ENML_FLOAT_CONFIG(min_translation);
   ENML_INT_CONFIG(max_correspondences_per_point);
@@ -470,7 +470,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   kMaxPointCloudRange = CONFIG_max_point_cloud_range;
   kMaxNormalPointDistance = CONFIG_max_normal_point_distance;
   kMapName = CONFIG_map_name;
-  
+
 #ifdef NDEBUG
   options->kNumThreads = CONFIG_num_threads;
 #else
@@ -513,7 +513,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   options->kVisibilityCorrelationFactor = CONFIG_visibility_correlation_factor;
   options->num_skip_readings = CONFIG_num_skip_readings;
   options->max_update_period = CONFIG_max_update_period;
-  
+
   return true;
 }
 
@@ -1217,7 +1217,7 @@ void DrawObservations(
     const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     const float pose_angle = poses[3 * i + 2];
     const Rotation2Df pose_rotation(pose_angle);
-    const Affine2f pose_transform = 
+    const Affine2f pose_transform =
         Translation2f(pose_location) * pose_rotation;
     for (size_t j = 0; j < point_cloud.size(); ++j) {
       const Vector2f point = pose_transform * point_cloud[j];
@@ -1478,7 +1478,7 @@ void SaveSensorErrors(
       point_cloud_g[j] = Vector2f(point_cloud[j].x(), point_cloud[j].y());
     }
     PointCloudf predicted_point_cloud;
-    map.GetPredictedPointCloud(pose_loc_g, 0.01, localization_options_.kMaxRange, point_cloud_g, &predicted_point_cloud); 
+    map.GetPredictedPointCloud(pose_loc_g, 0.01, localization_options_.kMaxRange, point_cloud_g, &predicted_point_cloud);
     const Affine2f pose_tf = Translation2f(pose_loc_g) * Rotation2Df(poses[i].angle);
     for (size_t j = 0; j < point_cloud_g.size(); ++j) {
       const Vector2f observed_point = pose_tf * point_cloud_g[j];
@@ -2147,7 +2147,7 @@ int main(int argc, char** argv) {
   int c;
   while((c = popt.getNextOpt()) >= 0){
   }
-  
+
   CHECK(LoadConfiguration(&localization_options_));
 
   // if (bag_file == NULL) unique_node_name = true;

@@ -4,3 +4,6 @@
 [submodule "src/config-reader"]
 	path = src/config-reader
 	url = git@github.com:ut-amrl/config-reader.git
+[submodule "maps"]
+	path = maps
+	url = git@github.com:ut-amrl/amrl_maps.git
