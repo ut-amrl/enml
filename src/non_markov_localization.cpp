@@ -160,9 +160,9 @@ namespace vector_localization {
 NonMarkovLocalization::NonMarkovLocalization(const string& maps_directory) :
     lost_metric_(0),
     terminate_(false),
-    vector_map_(maps_directory.c_str()),
     next_pose_id_(0),
-    t_last_update_(0) {
+    t_last_update_(0),
+    maps_dir_(maps_directory) {
   CHECK_EQ(sem_init(&update_semaphore_, 0, 0), 0);
   CHECK_EQ(pthread_mutex_init(&update_mutex_, NULL), 0);
   CHECK_EQ(pthread_create(
@@ -173,6 +173,10 @@ NonMarkovLocalization::NonMarkovLocalization(const string& maps_directory) :
 NonMarkovLocalization::~NonMarkovLocalization() {
   Terminate();
   CHECK_EQ(pthread_join(update_thread_, NULL), 0);
+}
+
+string NonMarkovLocalization::GetMapFileFromName(const string& map) const {
+  return maps_dir_ + "/" + map + "/" + map + ".txt";
 }
 
 void NonMarkovLocalization::Reset() {
@@ -1000,7 +1004,8 @@ bool NonMarkovLocalization::BatchLocalize(
   ScopedFile fid(NULL);
   if (kDebugConvergence) fid.Open("results/enml_convergence_steps.txt", "w");
   CHECK_EQ(poses->size(), point_clouds.size());
-  vector_map_.Load(map_name.c_str());
+  vector_map_.Load(GetMapFileFromName(map_name));
+  map_name_ = map_name;
   localization_options_ = localization_options;
 
   point_clouds_e_ = point_clouds;
@@ -1712,8 +1717,9 @@ void NonMarkovLocalization::Initialize(const Pose2Df& pose,
   ScopedLock lock(update_mutex_);
   ClearPoses();
   latest_mle_pose_.Set(pose);
-  if (map_name != vector_map_.file_name) {
-    vector_map_.Load(map_name);
+  if (map_name != map_name_) {
+    vector_map_.Load(GetMapFileFromName(map_name));
+    map_name_ = map_name;
   }
 }
 

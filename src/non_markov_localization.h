@@ -405,6 +405,9 @@ class NonMarkovLocalization {
   // Computes an error metric that idicates how "lost" the EnML estimate is.
   void ComputeLostMetric();
 
+  // Get map file name from map name.
+  std::string GetMapFileFromName(const std::string& map) const;
+
   // The error metric of how lost the EnML estimate is.
   float lost_metric_;
 
@@ -552,6 +555,12 @@ class NonMarkovLocalization {
 
   // The last time a pose update was performed.
   double t_last_update_;
+
+  // The directory where all maps are stored.
+  const std::string maps_dir_;
+
+  // The current map name.
+  std::string map_name_;
 };
 
 }  // namespace vector_localization
