@@ -248,7 +248,7 @@ void NonMarkovLocalization::FindVisualOdometryCorrespondences(
     const size_t min_poses, const size_t max_poses) {
   const float min_cosine_angle = cos(localization_options_.kMaxStfAngleError);
   const size_t poses_end = min(
-      static_cast<size_t>(max_poses + 1), point_clouds_e_.size());
+      static_cast<size_t>(max_poses + 1), point_clouds_.size());
   if (poses_end < min_poses + 1) return;
   vector<vector<PointToPointCorrespondence> > pose_correspondences(
       poses_end - min_poses - 1);
@@ -258,12 +258,12 @@ void NonMarkovLocalization::FindVisualOdometryCorrespondences(
     correspondence.source_pose = i;
     correspondence.target_pose = i + 1;
     Affine2f source_to_target_tf = RelativePoseTransform(i, i + 1);
-    for (size_t k = 0; k < point_clouds_e_[i].size(); ++k) {
+    for (size_t k = 0; k < point_clouds_[i].size(); ++k) {
       correspondence.source_point = k;
-      const Vector2f point(source_to_target_tf * point_clouds_e_[i][k]);
+      const Vector2f point(source_to_target_tf * point_clouds_[i][k]);
       const Vector2f normal =
           Rotation2Df(pose_array_[3 * i + 2 + 3] - pose_array_[3 * i + 2]) *
-          normal_clouds_e_[i][k];
+          normal_clouds_[i][k];
       KDNodeValue<float, 2> neighbor_point;
       const float closest_distance = kdtrees_[i + 1]->FindNearestPoint(
           point, localization_options_.kPointMatchThreshold, &neighbor_point);
@@ -334,14 +334,14 @@ void NonMarkovLocalization::FindSTFCorrespondences(
   // const float kMaxPoseSqDistance = sq(100.0);
   static const int kPointMatchSeparation = 4;
   const size_t poses_end = min(
-      static_cast<size_t>(max_poses + 1), point_clouds_e_.size());
+      static_cast<size_t>(max_poses + 1), point_clouds_.size());
   CHECK_GT(pose_array_.size(), poses_end - 1);
   vector<vector<PointToPointGlobCorrespondence> > pose_point_correspondences(
       poses_end - min_poses);
   point_point_glob_correspondences_.clear();
   OMP_PARALLEL_FOR
   for (size_t i = min_poses; i < poses_end; ++i) {
-    vector<int> point_corrspondences(point_clouds_e_[i].size(), 0);
+    vector<int> point_corrspondences(point_clouds_[i].size(), 0);
     const Vector2f source_pose_location(
         pose_array_[3 * i], pose_array_[3 * i + 1]);
     const Rotation2Df source_pose_rotation(pose_array_[3 * i + 2]);
@@ -359,7 +359,7 @@ void NonMarkovLocalization::FindSTFCorrespondences(
       // if ((target_pose_location - source_pose_location).squaredNorm() >
       //     kMaxPoseSqDistance) continue;
       Affine2f source_to_target_tf = RelativePoseTransform(i, j);
-      for (size_t k = 0; k < point_clouds_e_[i].size();
+      for (size_t k = 0; k < point_clouds_[i].size();
            k += localization_options_.num_skip_readings) {
         // Ignore points that already have a valid correspondence: they do not
         // need to be considered as STF objects.
@@ -368,10 +368,10 @@ void NonMarkovLocalization::FindSTFCorrespondences(
             localization_options_.kMaxCorrespondencesPerPoint) {
           continue;
         }
-        const Vector2f point(source_to_target_tf * point_clouds_e_[i][k]);
+        const Vector2f point(source_to_target_tf * point_clouds_[i][k]);
         const Vector2f normal =
             Rotation2Df(pose_array_[3 * j + 2] - pose_array_[3 * i + 2]) *
-            normal_clouds_e_[i][k];
+            normal_clouds_[i][k];
         KDNodeValue<float, 2> neighbor_point;
         const float closest_distance = kdtrees_[j]->FindNearestPoint(
             point, localization_options_.kPointMatchThreshold, &neighbor_point);
@@ -382,13 +382,13 @@ void NonMarkovLocalization::FindSTFCorrespondences(
           correspondence.points0_indices.push_back(k);
           correspondence.points1_indices.push_back(neighbor_point.index);
           correspondence.points0.push_back(
-              point_clouds_e_[i][k]);
+              point_clouds_[i][k]);
           correspondence.points1.push_back(
-              point_clouds_e_[j][neighbor_point.index]);
+              point_clouds_[j][neighbor_point.index]);
           correspondence.normals0.push_back(
-              normal_clouds_e_[i][k]);
+              normal_clouds_[i][k]);
           correspondence.normals1.push_back(
-              normal_clouds_e_[j][neighbor_point.index]);
+              normal_clouds_[j][neighbor_point.index]);
           source_point_indices.push_back(k);
           ++num_stfs;
           ++point_corrspondences[k];
@@ -448,9 +448,9 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
 void NonMarkovLocalization::FindLTFCorrespondences(
   const size_t min_poses, const size_t max_poses) {
   static const bool debug = false;
-  point_line_correspondences_.resize(point_clouds_e_.size());
-  ray_cast_lines_.resize(point_clouds_e_.size());
-  const size_t num_poses = min(point_clouds_e_.size(), max_poses + 1);
+  point_line_correspondences_.resize(point_clouds_.size());
+  ray_cast_lines_.resize(point_clouds_.size());
+  const size_t num_poses = min(point_clouds_.size(), max_poses + 1);
   if (debug) printf("Finding map correspondences for poses %lu:%lu\n",
       min_poses, num_poses - 1);
   CHECK_GT(pose_array_.size(), num_poses * 3 - 1);
@@ -458,7 +458,7 @@ void NonMarkovLocalization::FindLTFCorrespondences(
   for (size_t i = min_poses; i < num_poses; ++i) {
     const size_t j = 3 * i;
     FindSinglePoseLtfCorrespondences(
-        point_clouds_e_[i], normal_clouds_e_[i], &(pose_array_[j]),
+        point_clouds_[i], normal_clouds_[i], &(pose_array_[j]),
         &(point_line_correspondences_[i]), &(ray_cast_lines_[i]),
         &(observation_classes_[i]));
   }
@@ -547,15 +547,15 @@ void NonMarkovLocalization::AddSinglePoseLTFConstraints(
 void NonMarkovLocalization::AddLTFConstraints(
     const size_t min_poses, const size_t max_poses, ceres::Problem* problem) {
   TIME_FUNCTION
-  DCHECK_EQ(point_clouds_e_.size(), ray_cast_lines_.size());
-  DCHECK_EQ(point_clouds_e_.size(), point_line_correspondences_.size());
-  DCHECK_GT(point_clouds_e_.size(), min_poses);
+  DCHECK_EQ(point_clouds_.size(), ray_cast_lines_.size());
+  DCHECK_EQ(point_clouds_.size(), point_line_correspondences_.size());
+  DCHECK_GT(point_clouds_.size(), min_poses);
   point_line_constraints_.clear();
-  const size_t num_point_clouds = min(point_clouds_e_.size(), max_poses + 1);
+  const size_t num_point_clouds = min(point_clouds_.size(), max_poses + 1);
   for (size_t i = min_poses; i < num_point_clouds; ++i) {
     AddSinglePoseLTFConstraints(
         i, ray_cast_lines_[i], point_line_correspondences_[i],
-        observation_classes_[i], point_clouds_e_[i], &(pose_array_[3 * i]),
+        observation_classes_[i], point_clouds_[i], &(pose_array_[3 * i]),
         &point_line_constraints_, problem);
   }
 }
@@ -799,13 +799,13 @@ void NonMarkovLocalization::SensorResettingResample(
 void NonMarkovLocalization::AddVisibilityConstraints(
     const size_t min_poses, const size_t max_poses, ceres::Problem* problem) {
   visibility_constraints_.clear();
-  const size_t num_point_clouds = min(point_clouds_e_.size(), max_poses + 1);
+  const size_t num_point_clouds = min(point_clouds_.size(), max_poses + 1);
 
-  vector<VisibilityGlobConstraint*> constraints(point_clouds_e_.size());
+  vector<VisibilityGlobConstraint*> constraints(point_clouds_.size());
   OMP_PARALLEL_FOR
   for (size_t i = min_poses; i < num_point_clouds; ++i) {
-    const vector<Vector2f>& point_cloud = point_clouds_e_[i];
-    const vector<Vector2f>& normal_cloud = normal_clouds_e_[i];
+    const vector<Vector2f>& point_cloud = point_clouds_[i];
+    const vector<Vector2f>& normal_cloud = normal_clouds_[i];
     const Vector2f pose_location(
         pose_array_[3 * i + 0], pose_array_[3 * i + 1]);
     const Rotation2Df pose_rotation = Rotation2Df(pose_array_[3 * i + 2]);
@@ -1008,13 +1008,13 @@ bool NonMarkovLocalization::BatchLocalize(
   map_name_ = map_name;
   localization_options_ = localization_options;
 
-  point_clouds_e_ = point_clouds;
+  point_clouds_ = point_clouds;
   // Make a copy of the point clouds in Vector2f format for ray casting
   // with VectorMap.
-  normal_clouds_e_ = normal_clouds;
+  normal_clouds_ = normal_clouds;
 
   // Build KD Trees for every pose.
-  BuildKDTrees(point_clouds_e_, normal_clouds);
+  BuildKDTrees(point_clouds_, normal_clouds);
 
   // Make a mutable copy of the poses for opimization.
   pose_array_.resize(poses->size() * 3);
@@ -1035,7 +1035,7 @@ bool NonMarkovLocalization::BatchLocalize(
 
   vector<bool> pose_calculated(poses->size(), false);
   vector<Pose2Df> initial_poses(poses->begin(), poses->end());
-  size_t max_poses = min(kPoseIncrement, point_clouds_e_.size() - 1);
+  size_t max_poses = min(kPoseIncrement, point_clouds_.size() - 1);
   size_t min_poses = max(0, static_cast<int>(max_poses) -
       localization_options_.kMaxHistory);
   for (int i = 0; !terminate_; ++i) {
@@ -1045,7 +1045,7 @@ bool NonMarkovLocalization::BatchLocalize(
       printf("Finding correspondences\n");
     } else {
       printf("\rBatch localization iteration %d, poses %lu:%lu of %lu",
-             i, min_poses, max_poses, point_clouds_e_.size());
+             i, min_poses, max_poses, point_clouds_.size());
       fflush(stdout);
     }
     ResetObservationClasses(min_poses, max_poses);
@@ -1073,7 +1073,7 @@ bool NonMarkovLocalization::BatchLocalize(
     vector<Matrix2f> covariances;
     if (localization_options_.CorrespondenceCallback != NULL) {
       localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
+          pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
           point_line_correspondences_, point_point_glob_correspondences_,
           observation_classes_, visibility_constraints_,
           gradients, covariances, *poses, min_poses, max_poses);
@@ -1153,10 +1153,10 @@ bool NonMarkovLocalization::BatchLocalize(
             }
           }
         }
-        if (max_poses == point_clouds_e_.size() - 1) break;
+        if (max_poses == point_clouds_.size() - 1) break;
         max_poses = min(
             static_cast<unsigned int>(max_poses + kPoseIncrement),
-            static_cast<unsigned int>(point_clouds_e_.size() - 1));
+            static_cast<unsigned int>(point_clouds_.size() - 1));
         min_poses = max(0, static_cast<int>(max_poses) -
             localization_options_.kMaxHistory);
       }
@@ -1164,7 +1164,7 @@ bool NonMarkovLocalization::BatchLocalize(
     if (num_iterations > localization_options_.kMaxRepeatIterations) {
       if (localization_options_.CorrespondenceCallback != NULL) {
         localization_options_.CorrespondenceCallback(
-            pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
+            pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
             point_line_correspondences_, point_point_glob_correspondences_,
             observation_classes_, visibility_constraints_,
             gradients, covariances, *poses, min_poses, max_poses);
@@ -1187,10 +1187,10 @@ bool NonMarkovLocalization::BatchLocalize(
                            poses->size() - 1),
                        *poses);
       // if (max_poses + kPoseIncrement > point_clouds_.size() - 1) break;
-      if (max_poses == point_clouds_e_.size() - 1) break;
+      if (max_poses == point_clouds_.size() - 1) break;
       max_poses = min(
         static_cast<unsigned int>(max_poses + kPoseIncrement),
-                      static_cast<unsigned int>(point_clouds_e_.size() - 1));
+                      static_cast<unsigned int>(point_clouds_.size() - 1));
       min_poses = max(0, static_cast<int>(max_poses) -
           localization_options_.kMaxHistory);
     }
@@ -1202,7 +1202,7 @@ bool NonMarkovLocalization::BatchLocalize(
   }
 
   if (debug) {
-    printf("Optimized %d poses.\n", static_cast<int>(point_clouds_e_.size()));
+    printf("Optimized %d poses.\n", static_cast<int>(point_clouds_.size()));
   } else {
     // To clear the cursor of the line used to display progress.
     printf("\n");
@@ -1272,9 +1272,9 @@ void NonMarkovLocalization::Update() {
 
   int repeat_iterations = 0;
   const size_t min_poses = 0;
-  const size_t max_poses = point_clouds_e_.size() - 1;
+  const size_t max_poses = point_clouds_.size() - 1;
   ResetObservationClasses(min_poses, max_poses);
-  if (point_clouds_e_.size() < 2) return;
+  if (point_clouds_.size() < 2) return;
   // Copy over the unoptimized poses.
   for (size_t i = 0; i < poses_.size(); ++i) {
     const int j = 3 * i;
@@ -1350,7 +1350,7 @@ void NonMarkovLocalization::Update() {
       problem.Evaluate(evaluate_options, NULL, NULL, &gradients, &jacobian);
       CHECK_EQ(gradients.size(), pose_array_.size());
     }
-    if (true) {
+    if (false) {
       ceres::Covariance::Options options;
       options.num_threads =  localization_options_.kNumThreads;
       ceres::Covariance cov(options);
@@ -1380,7 +1380,7 @@ void NonMarkovLocalization::Update() {
     }
     if (localization_options_.CorrespondenceCallback != NULL) {
       localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_e_, normal_clouds_e_, ray_cast_lines_,
+          pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
           point_line_correspondences_, point_point_glob_correspondences_,
           observation_classes_, visibility_constraints_,
           gradients, covariances, poses_, min_poses, max_poses);
@@ -1430,7 +1430,7 @@ void NonMarkovLocalization::SaveEpisodeData() {
       }
     }
     fprintf(fid(), "%6lu, %6lu\n",
-            point_clouds_e_[i].size(), num_ltfs);
+            point_clouds_[i].size(), num_ltfs);
   }
 }
 
@@ -1439,7 +1439,7 @@ void NonMarkovLocalization::CountConstraints(
     size_t* num_ltf_constraints_ptr) {
   size_t& num_points = *num_points_ptr;
   size_t& num_ltf_constraints = *num_ltf_constraints_ptr;
-  num_points = point_clouds_e_[node_index].size();
+  num_points = point_clouds_[node_index].size();
   num_ltf_constraints = 0;
   for (size_t i = 0; i < num_points; ++i) {
     if (observation_classes_[node_index][i] == kLtfObservation) {
@@ -1507,14 +1507,12 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
   pose_ids_.erase(pose_ids_.begin(), pose_ids_.begin() + pose_index);
   poses_.erase(poses_.begin(), poses_.begin() + pose_index);
   kdtrees_.erase(kdtrees_.begin(), kdtrees_.begin() + pose_index);
-  normal_clouds_e_.erase(normal_clouds_e_.begin(),
-                         normal_clouds_e_.begin() + pose_index);
-  point_clouds_e_.erase(point_clouds_e_.begin(),
-                        point_clouds_e_.begin() + pose_index);
+  normal_clouds_.erase(normal_clouds_.begin(),
+                         normal_clouds_.begin() + pose_index);
+  point_clouds_.erase(point_clouds_.begin(),
+                        point_clouds_.begin() + pose_index);
   observation_classes_.erase(observation_classes_.begin(),
                              observation_classes_.begin() + pose_index);
-  point_clouds_e_.erase(point_clouds_e_.begin(),
-                        point_clouds_e_.begin() + pose_index);
   if (debug) printf("pose_array_ before:%lu ", pose_array_.size());
   pose_array_.erase(pose_array_.begin(),
                     pose_array_.begin() + (3 * pose_index));
@@ -1557,8 +1555,8 @@ void NonMarkovLocalization::ClearPoses() {
   pose_array_.clear();
   poses_.clear();
   pose_ids_.clear();
-  point_clouds_e_.clear();
-  normal_clouds_e_.clear();
+  point_clouds_.clear();
+  normal_clouds_.clear();
   observation_classes_.clear();
   kdtrees_.clear();
   latest_mle_pose_.Set(Pose2Df(0.0, Vector2f(0.0, 0.0)));
@@ -1566,8 +1564,8 @@ void NonMarkovLocalization::ClearPoses() {
   pending_relative_pose_.Clear();
   pending_rotation_ = 0.0;
   pending_translation_ = 0.0;
-  pending_normal_clouds_e_.clear();
-  pending_point_clouds_e_.clear();
+  pending_normal_clouds_.clear();
+  pending_point_clouds_.clear();
   pending_relative_poses_.clear();
   latest_pending_pose_.Set(Pose2Df(0.0, Vector2f(0.0, 0.0)));
   latest_mle_pose_.Set(Pose2Df(0.0, Vector2f(0.0, 0.0)));
@@ -1575,30 +1573,38 @@ void NonMarkovLocalization::ClearPoses() {
 
 void NonMarkovLocalization::AddPendingPoseNodes()
 {
-  const size_t num_old_point_clouds = point_clouds_e_.size();
+  const size_t num_old_point_clouds = point_clouds_.size();
+  const size_t num_old_normal_clouds = normal_clouds_.size();
 
-  for (size_t i = 0; i < pending_point_clouds_e_.size(); ++i) {
+  for (size_t i = 0; i < pending_point_clouds_.size(); ++i) {
     pose_ids_.push_back(next_pose_id_ + static_cast<uint64_t>(i));
   }
   next_pose_id_ = pose_ids_.back() + 1;
 
   // Copy over pending point and normal clouds.
-  point_clouds_e_.insert(point_clouds_e_.end(),
-                         pending_point_clouds_e_.begin(),
-                         pending_point_clouds_e_.end());
-  normal_clouds_e_.insert(normal_clouds_e_.end(),
-                          pending_normal_clouds_e_.begin(),
-                          pending_normal_clouds_e_.end());
+  point_clouds_.insert(point_clouds_.end(),
+                         pending_point_clouds_.begin(),
+                         pending_point_clouds_.end());
+  normal_clouds_.insert(normal_clouds_.end(),
+                          pending_normal_clouds_.begin(),
+                          pending_normal_clouds_.end());
 
+  if (point_clouds_.size() != normal_clouds_.size()) {
+    printf("\nOld: %lu,%lu Additional:%lu,%lu\n",
+           num_old_point_clouds,
+           num_old_normal_clouds,
+           pending_point_clouds_.size(),
+           pending_normal_clouds_.size());
+  }
   // Build KD trees for new point clouds.
-  CHECK_GT(point_clouds_e_.size(), 0);
-  CHECK_EQ(point_clouds_e_.size(), normal_clouds_e_.size());
-  kdtrees_.resize(point_clouds_e_.size(), NULL);
-  const size_t num_new_point_clouds = pending_point_clouds_e_.size();
+  CHECK_GT(point_clouds_.size(), 0);
+  CHECK_EQ(point_clouds_.size(), normal_clouds_.size());
+  kdtrees_.resize(point_clouds_.size(), NULL);
+  const size_t num_new_point_clouds = pending_point_clouds_.size();
   OMP_PARALLEL_FOR
   for (size_t i = 0; i < num_new_point_clouds; ++i) {
-    const PointCloudf& point_cloud = pending_point_clouds_e_[i];
-    const NormalCloudf& normal_cloud = pending_normal_clouds_e_[i];
+    const PointCloudf& point_cloud = pending_point_clouds_[i];
+    const NormalCloudf& normal_cloud = pending_normal_clouds_[i];
     vector<KDNodeValue<float, 2> > values(point_cloud.size());
     for (size_t j = 0; j < point_cloud.size(); ++j) {
       values[j].index = j;
@@ -1617,7 +1623,7 @@ void NonMarkovLocalization::AddPendingPoseNodes()
   latest_mle_pose_.SetUnlock(latest_pose);
 
   // Add converted point clouds and copy of pose array.
-  pose_array_.resize(point_clouds_e_.size() * 3);
+  pose_array_.resize(point_clouds_.size() * 3);
   OMP_PARALLEL_FOR
   for (size_t i = 0; i < num_new_point_clouds; ++i) {
     const size_t pose_array_offset = 3 * (num_old_point_clouds + i);
@@ -1627,9 +1633,9 @@ void NonMarkovLocalization::AddPendingPoseNodes()
     pose_array_[pose_array_offset + 2] = pose.angle;
   }
 
-  CHECK_EQ(pose_ids_.size(), point_clouds_e_.size());
-  pending_point_clouds_e_.clear();
-  pending_normal_clouds_e_.clear();
+  CHECK_EQ(pose_ids_.size(), point_clouds_.size());
+  pending_point_clouds_.clear();
+  pending_normal_clouds_.clear();
   pending_relative_poses_.clear();
 }
 
@@ -1644,10 +1650,10 @@ void NonMarkovLocalization::AddPose(
   //   Spawn a new update.
   CHECK_EQ(point_cloud.size(), normal_cloud.size());
   CHECK_GT(point_cloud.size(), 0);
-  pending_point_clouds_e_.push_back(point_cloud);
-  pending_normal_clouds_e_.push_back(normal_cloud);
+  pending_point_clouds_.push_back(point_cloud);
+  pending_normal_clouds_.push_back(normal_cloud);
   pending_relative_poses_.push_back(relative_pose);
-  CHECK_GT(pending_point_clouds_e_.size(), 0);
+  CHECK_GT(pending_point_clouds_.size(), 0);
 
   Pose2Df latest_pending_pose = latest_pending_pose_.GetLock();
   latest_pending_pose.ApplyPose(relative_pose);
@@ -1694,7 +1700,7 @@ bool NonMarkovLocalization::GetNodeData(
   if (!lock.Locked()) return false;
   *poses = poses_;
   *pose_ids = pose_ids_;
-  *point_clouds = point_clouds_e_;
+  *point_clouds = point_clouds_;
   *pending_poses = pending_relative_poses_;
   *observation_classes = observation_classes_;
   *latest_pose = latest_mle_pose_.Get();
@@ -1744,7 +1750,7 @@ std::vector<int> NonMarkovLocalization::GetLoggedEpisodeLengths() const {
 }
 
 void NonMarkovLocalization::Finalize() {
-  if (pending_point_clouds_e_.size() > 0) {
+  if (pending_point_clouds_.size() > 0) {
     ScopedLock lock(update_mutex_);
     // Copy over pending nodes to current nodes.
     AddPendingPoseNodes();
@@ -1768,13 +1774,13 @@ void NonMarkovLocalization::Finalize() {
 
 void NonMarkovLocalization::ResetObservationClasses(
     const size_t start, const size_t end) {
-  DCHECK_LT(start, point_clouds_e_.size());
-  DCHECK_LT(end, point_clouds_e_.size());
-  observation_classes_.resize(point_clouds_e_.size());
+  DCHECK_LT(start, point_clouds_.size());
+  DCHECK_LT(end, point_clouds_.size());
+  observation_classes_.resize(point_clouds_.size());
   OMP_PARALLEL_FOR
   for (size_t i = start; i <= end; ++i) {
-    observation_classes_[i].resize(point_clouds_e_[i].size());
-    for (size_t j = 0; j < point_clouds_e_[i].size(); ++j) {
+    observation_classes_[i].resize(point_clouds_[i].size());
+    for (size_t j = 0; j < point_clouds_[i].size(); ++j) {
       observation_classes_[i][j] = kDfObservation;
     }
   }

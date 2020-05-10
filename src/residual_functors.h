@@ -29,6 +29,7 @@
 #include <eigen3/Eigen/Geometry>
 
 #include "shared/util/openmp_utils.h"
+#include "new_shared/math/math_util.h"
 #include "non_markov_localization.h"
 
 namespace ceres {
@@ -1042,6 +1043,19 @@ struct AnchorConstraint {
   const float std_dev;
 };
 
+template <typename T>
+T AngleMod(T x) {
+  const T pi = T(M_PI);
+  const T two_pi = T(M_2PI);
+  while(x > pi) {
+    x -= two_pi;
+  }
+  while(x < -pi) {
+    x += two_pi;
+  }
+  return x;
+}
+
 struct PoseConstraint {
   PoseConstraint(const Eigen::Matrix2f& _axis_transform,
                  float _radial_std_dev,
@@ -1085,7 +1099,8 @@ struct PoseConstraint {
     residuals[1] =  translation.y() / T(tangential_std_dev);
     //T rotation_error = (pose2[2] - pose1[2] - T(rotation));
 
-    const T angular_error = pose2[2] - pose1[2] - T(rotation);
+    const T angular_error =
+        AngleMod(pose2[2] - pose1[2] - T(rotation));
     residuals[2] = angular_error / T(angular_std_dev);
 
     return true;

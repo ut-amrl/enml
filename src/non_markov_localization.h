@@ -469,10 +469,10 @@ class NonMarkovLocalization {
   float pending_rotation_;
 
   // Point clouds for every pose node, in Eigen::Vector2f format.
-  std::vector<perception_2d::PointCloudf> point_clouds_e_;
+  std::vector<perception_2d::PointCloudf> point_clouds_;
 
   // Normal clouds for every pose node, in Eigen::Vector2f format.
-  std::vector<perception_2d::NormalCloudf> normal_clouds_e_;
+  std::vector<perception_2d::NormalCloudf> normal_clouds_;
 
   // Poses of every node.
   std::vector<perception_2d::Pose2Df> poses_;
@@ -527,11 +527,11 @@ class NonMarkovLocalization {
 
   // Pending point clouds in Eigen::Vector2f format, that yet need to be added
   // to the MLE pose array.
-  std::vector<perception_2d::PointCloudf> pending_point_clouds_e_;
+  std::vector<perception_2d::PointCloudf> pending_point_clouds_;
 
   // Pending normal clouds in Eigen::Vector2f format, that yet need to be added
   // to the MLE pose array.
-  std::vector<perception_2d::NormalCloudf> pending_normal_clouds_e_;
+  std::vector<perception_2d::NormalCloudf> pending_normal_clouds_;
 
   // Pending relative poses of every node, that yet need to be added to the MLE
   // pose array.
