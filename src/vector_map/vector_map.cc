@@ -35,6 +35,7 @@
 #include "new_shared/util/timer.h"
 #include "vector_map.h"
 
+using math_util::AngleDist;
 using math_util::AngleMod;
 using math_util::RadToDeg;
 using geometry::Cross;
@@ -380,6 +381,7 @@ void VectorMap::Load(const string& file) {
   }
   fclose(fid);
   Cleanup();
+  printf("Loaded vector map %s with %d lines\n", file.c_str(), int(lines.size()));
   file_name = file;
 }
 
@@ -388,6 +390,57 @@ bool VectorMap::Intersects(const Vector2f& v0, const Vector2f& v1) const {
     if (l.Intersects(v0, v1)) return true;
   }
   return false;
+}
+
+void OrderAndSortLineSegments(const Vector2f& loc, vector<Line2f>* lines_ptr) {
+  vector<Line2f>& lines = *lines_ptr;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    Line2f& r = lines[i];
+    const Vector2f p0 = r.p0 - loc;
+    const Vector2f p1 = r.p1 - loc;
+    const float a0 = atan2(p0.y(), p0.x());
+    const float a1 = atan2(p1.y(), p1.x());
+    if (AngleDist(a0, a1) < 0.0001) {
+      lines.erase(lines.begin() + i);
+      if (lines.empty()) break;
+      --i;
+      continue;
+    }
+    const bool wraps_around = fabs(a1 - a0) > M_PI;
+    if ((wraps_around && a0 < a1) ||
+        (!wraps_around && a0 > a1)) {
+      swap(r.p0, r.p1);
+    }
+  }
+}
+
+void VectorMap::GetRayToLineCorrespondences(
+    const Vector2f& sensor_loc,
+    const float angle,
+    const vector<Vector2f>& rays,
+    const float min_range,
+    const float max_range,
+    vector<Line2f>* lines_ptr,
+    vector<int>* line_correspondences) const {
+  static CumulativeFunctionTimer function_timer_(__FUNCTION__);
+  CumulativeFunctionTimer::Invocation invoke(&function_timer_);
+  vector<Line2f>& raycast = *lines_ptr;
+  SceneRender(sensor_loc, max_range, -M_PI, M_PI, lines_ptr);
+  // Do the dumb thing for the first cut.
+  OrderAndSortLineSegments(sensor_loc, lines_ptr);
+  const Eigen::Matrix2f pose_rotation = Eigen::Rotation2Df(angle).toRotationMatrix();
+  line_correspondences->resize(rays.size());
+  for (size_t i = 0; i < rays.size(); ++i) {
+    const Vector2f r = pose_rotation * rays[i];
+    (*line_correspondences)[i] = -1;
+    for (size_t j = 0; j < raycast.size(); ++j) {
+      if (Cross<float>(raycast[i].p0 - sensor_loc, r) > 0.0f &&
+          Cross<float>(raycast[i].p1 - sensor_loc, r) < 0.0f) {
+        (*line_correspondences)[i] = j;
+        break;
+      }
+    }
+  }
 }
 
 void VectorMap::GetPredictedScan(const Vector2f& loc,
@@ -421,7 +474,7 @@ void VectorMap::GetPredictedScan(const Vector2f& loc,
     l.line.p1 = r.p1 - loc;
     l.a0 = atan2(l.line.p0.y(), l.line.p0.x());
     l.a1 = atan2(l.line.p1.y(), l.line.p1.x());
-    if (fabs(l.a0 - l.a1) < 0.0001) continue;
+    if (AngleDist(l.a0, l.a1) < 0.0001) continue;
     l.wraps_around = fabs(l.a1 - l.a0) > M_PI;
     if ((l.wraps_around && l.a0 < l.a1) ||
         (!l.wraps_around && l.a0 > l.a1)) {

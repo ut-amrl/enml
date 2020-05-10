@@ -88,9 +88,7 @@ struct VectorMap {
       const float min_range,
       const float max_range,
       std::vector<geometry::Line2f>* lines_ptr,
-      std::vector<int>* line_correspondences) const {
-    CHECK(false) << "Unimplemented";
-  }
+      std::vector<int>* line_correspondences) const;
 
   void Cleanup();
 

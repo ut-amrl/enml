@@ -2,20 +2,16 @@
 -- enml_domain = "freiburg";
 enml_domain = "cobot";
 
-RobotConfig = {
-  name = "cobot4";
-};
-
 enml = {
-  map_name = "GDC3";
-  starting_loc_x = 47.016267;
-  starting_loc_y = 30.034157;
+  map_name = "EmptyMap";
+  starting_loc_x = 0;
+  starting_loc_y = 0;
   starting_angle = deg2rad(180.0);
 
   -- CoBot Sensor parameters.
   laser_std_dev = 0.05;
   min_point_cloud_range = 0.02;
-  max_point_cloud_range = 3.9;
+  max_point_cloud_range = 7.9;
   max_normal_point_distance = 0.1;
   robot_laser_offset = vec2(0.15, 0.0);
   num_skip_readings = 1;
@@ -78,82 +74,106 @@ enml = {
   num_threads = 8;
 };
 
+if RobotConfig.name=="ut-automata" then
+  enml.map_name = "GDC3";
+  enml.starting_loc_x = 14.8;
+  enml.starting_loc_y = 54.4;
+  enml.starting_angle = deg2rad(0.0);
+
+  -- -- CoBot Sensor parameters.
+  enml.laser_std_dev = 0.05;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 4.9;
+  enml.max_normal_point_distance = 0.25;
+  enml.robot_laser_offset = vec2(0.22, 0.0);
+  enml.num_skip_readings = 1;
+
+  -- -- Odometry parameters.
+  -- -- CoBot parameters.
+  enml.min_rotation = deg2rad(5);
+  enml.min_translation = 0.6;
+  -- enml.max_odometry_delta_loc = 0.2;
+  -- enml.max_odometry_delta_angle = deg2rad(15.0);
+  -- enml.odometry_rotation_scale = 1.0;
+  -- enml.odometry_translation_scale = 1.0;
+end
+
 if RobotConfig.name=="Cobot-Sim" then
-  NonMarkovLocalization.min_episode_length = 10;
+  enml.min_episode_length = 10;
 end
 
 if RobotConfig.name=="Cobot1" then
-  NonMarkovLocalization.odometry_translation_scale = 1.02;
+  enml.odometry_translation_scale = 1.02;
 end
 
 if RobotConfig.name=="Cobot3" then
-  NonMarkovLocalization.min_rotation = deg2rad(5);
-  NonMarkovLocalization.min_translation = 0.1;
+  enml.min_rotation = deg2rad(5);
+  enml.min_translation = 0.1;
 
   -- Sensor parameters.
-  NonMarkovLocalization.robot_laser_offset = vec2(0.14, 0.0);
-  NonMarkovLocalization.laser_std_dev = 0.05;
-  NonMarkovLocalization.min_point_cloud_range = 0.02;
-  NonMarkovLocalization.max_point_cloud_range = 4.0;
-  NonMarkovLocalization.max_normal_point_distance = 0.15;
+  enml.robot_laser_offset = vec2(0.14, 0.0);
+  enml.laser_std_dev = 0.05;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 4.0;
+  enml.max_normal_point_distance = 0.15;
 
   -- Parameters for LTF constraints.
-  NonMarkovLocalization.max_point_to_line_distance = 0.15;
-  NonMarkovLocalization.max_angle_error = deg2rad(35.0);
-  NonMarkovLocalization.map_correlation_factor = 1.0 / 30.0;
+  enml.max_point_to_line_distance = 0.15;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 30.0;
 
   -- Parameters for STF constraints.
-  NonMarkovLocalization.point_match_threshold = 0.15;
-  NonMarkovLocalization.point_correlation_factor = 1.0 / 20.0;
+  enml.point_match_threshold = 0.15;
+  enml.point_correlation_factor = 1.0 / 20.0;
 
-  NonMarkovLocalization.visibility_correlation_factor = 0.01;
+  enml.visibility_correlation_factor = 0.01;
 
   -- Odometry constraints.
-  NonMarkovLocalization.max_update_period = 1.0;
+  enml.max_update_period = 1.0;
 
   -- MLE Optimization parameters.
-  NonMarkovLocalization.min_episode_length = 20;
-  NonMarkovLocalization.pose_increment = 1;
-  NonMarkovLocalization.max_history = 80;
-  NonMarkovLocalization.max_solver_iterations = 30;
-  NonMarkovLocalization.num_repeat_iterations = 1;
-  NonMarkovLocalization.max_repeat_iterations = 4;
-  NonMarkovLocalization.num_threads = 4;
+  enml.min_episode_length = 20;
+  enml.pose_increment = 1;
+  enml.max_history = 80;
+  enml.max_solver_iterations = 30;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 4;
+  enml.num_threads = 4;
 end
 
 if RobotConfig.name=="Cobot4" then
-  NonMarkovLocalization.min_rotation = deg2rad(20);
-  NonMarkovLocalization.min_translation = 0.1;
+  enml.min_rotation = deg2rad(20);
+  enml.min_translation = 0.1;
 
   -- Sensor parameters.
-  NonMarkovLocalization.robot_laser_offset = vec2(0.165, 0.0);
-  NonMarkovLocalization.laser_std_dev = 0.10;
-  NonMarkovLocalization.min_point_cloud_range = 0.02;
-  NonMarkovLocalization.max_point_cloud_range = 12.0;
-  NonMarkovLocalization.max_normal_point_distance = 0.15;
+  enml.robot_laser_offset = vec2(0.165, 0.0);
+  enml.laser_std_dev = 0.10;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 12.0;
+  enml.max_normal_point_distance = 0.15;
 
   -- Parameters for LTF constraints.
-  NonMarkovLocalization.max_point_to_line_distance = 0.35;
-  NonMarkovLocalization.max_angle_error = deg2rad(35.0);
-  NonMarkovLocalization.map_correlation_factor = 1.0 / 30.0;
+  enml.max_point_to_line_distance = 0.35;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 30.0;
 
   -- Parameters for STF constraints.
-  NonMarkovLocalization.point_match_threshold = 0.15;
-  NonMarkovLocalization.point_correlation_factor = 1.0 / 20.0;
+  enml.point_match_threshold = 0.15;
+  enml.point_correlation_factor = 1.0 / 20.0;
 
-  NonMarkovLocalization.visibility_correlation_factor = 0.01;
+  enml.visibility_correlation_factor = 0.01;
 
   -- Odometry constraints.
-  NonMarkovLocalization.max_update_period = 1.0;
+  enml.max_update_period = 1.0;
 
   -- MLE Optimization parameters.
-  NonMarkovLocalization.min_episode_length = 20;
-  NonMarkovLocalization.pose_increment = 1;
-  NonMarkovLocalization.max_history = 75;
-  NonMarkovLocalization.max_solver_iterations = 10;
-  NonMarkovLocalization.num_repeat_iterations = 1;
-  NonMarkovLocalization.max_repeat_iterations = 4;
-  NonMarkovLocalization.num_threads = 4;
+  enml.min_episode_length = 20;
+  enml.pose_increment = 1;
+  enml.max_history = 75;
+  enml.max_solver_iterations = 10;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 4;
+  enml.num_threads = 4;
 end
 
 -- Parameters for probabilistic object maps.
@@ -186,59 +206,59 @@ if enml_domain == "freiburg" then
   -- Univ. Freiburg parameters.
 
   -- datasets/freiburg_parkinglot/logs/*.bag
-  NonMarkovLocalization.starting_location = vec2(0.0, 0.0);
-  NonMarkovLocalization.starting_angle = deg2rad(0.0);
-  NonMarkovLocalization.map_name = "freiburg_parkinglot";
+  enml.starting_location = vec2(0.0, 0.0);
+  enml.starting_angle = deg2rad(0.0);
+  enml.map_name = "freiburg_parkinglot";
 
   -- Freiburg Sensor parameters.
-  NonMarkovLocalization.laser_std_dev = 0.1;
-  NonMarkovLocalization.min_point_cloud_range = 0.1;
-  NonMarkovLocalization.max_point_cloud_range = 70.0;
-  NonMarkovLocalization.max_normal_point_distance = 0.5;
-  NonMarkovLocalization.robot_laser_offset = vec2(0.0, 0.0);
+  enml.laser_std_dev = 0.1;
+  enml.min_point_cloud_range = 0.1;
+  enml.max_point_cloud_range = 70.0;
+  enml.max_normal_point_distance = 0.5;
+  enml.robot_laser_offset = vec2(0.0, 0.0);
 
 
   -- Parameters for LTF constraints.
-  NonMarkovLocalization.map_huber_loss = 0.1;
-  NonMarkovLocalization.max_point_to_line_distance = 0.5;
-  NonMarkovLocalization.max_angle_error = deg2rad(89.0);
-  NonMarkovLocalization.map_correlation_factor = 1; -- 1.0 / 50.0;
+  enml.map_huber_loss = 0.1;
+  enml.max_point_to_line_distance = 0.5;
+  enml.max_angle_error = deg2rad(89.0);
+  enml.map_correlation_factor = 1; -- 1.0 / 50.0;
 
   -- Parameters for STF constraints.
-  NonMarkovLocalization.point_match_threshold = 0.25;
-  NonMarkovLocalization.max_stf_angle_error = deg2rad(89.0);
-  NonMarkovLocalization.max_correspondences_per_point = 10;
-  NonMarkovLocalization.point_correlation_factor = 1; -- 1.0 / 50.0;
+  enml.point_match_threshold = 0.25;
+  enml.max_stf_angle_error = deg2rad(89.0);
+  enml.max_correspondences_per_point = 10;
+  enml.point_correlation_factor = 1; -- 1.0 / 50.0;
 
   -- Parameters for Odometry constraints.
-  NonMarkovLocalization.odometry_radial_stddev_rate = 0.2; -- 10.0;
-  NonMarkovLocalization.odometry_tangential_stddev_rate = 0.2; -- 3.0;
-  NonMarkovLocalization.odometry_angular_stddev_rate = 0.2; -- 30.0;
-  NonMarkovLocalization.odometry_translation_min_stddev = 0.01;
-  NonMarkovLocalization.odometry_translation_max_stddev = 1000000.5;
-  NonMarkovLocalization.odometry_rotation_min_stddev = deg2rad(1000.0);
-  NonMarkovLocalization.odometry_rotation_max_stddev = deg2rad(50000000.0);
+  enml.odometry_radial_stddev_rate = 0.2; -- 10.0;
+  enml.odometry_tangential_stddev_rate = 0.2; -- 3.0;
+  enml.odometry_angular_stddev_rate = 0.2; -- 30.0;
+  enml.odometry_translation_min_stddev = 0.01;
+  enml.odometry_translation_max_stddev = 1000000.5;
+  enml.odometry_rotation_min_stddev = deg2rad(1000.0);
+  enml.odometry_rotation_max_stddev = deg2rad(50000000.0);
 
   -- Odometry parameters.
-  NonMarkovLocalization.min_rotation = deg2rad(10.5);
-  NonMarkovLocalization.min_translation = 0.5;
+  enml.min_rotation = deg2rad(10.5);
+  enml.min_translation = 0.5;
 
-  NonMarkovLocalization.use_visibility_constraints = false;
+  enml.use_visibility_constraints = false;
 
   -- Parameters for episode segmentation.
-  NonMarkovLocalization.min_ltf_ratio = 0.7;
-  NonMarkovLocalization.min_episode_length = 20;
+  enml.min_ltf_ratio = 0.7;
+  enml.min_episode_length = 20;
 
   -- Parameters for object clustering.
-  NonMarkovLocalization.object_distance_threshold = 0.2;
-  NonMarkovLocalization.min_object_points = 500;
+  enml.object_distance_threshold = 0.2;
+  enml.min_object_points = 500;
 
   -- MLE Optimization parameters.
-  NonMarkovLocalization.pose_increment = 1;
-  NonMarkovLocalization.max_history = 80;
-  NonMarkovLocalization.max_solver_iterations = 50;
-  NonMarkovLocalization.num_repeat_iterations = 4;
-  NonMarkovLocalization.max_repeat_iterations = 6;
+  enml.pose_increment = 1;
+  enml.max_history = 80;
+  enml.max_solver_iterations = 50;
+  enml.num_repeat_iterations = 4;
+  enml.max_repeat_iterations = 6;
 
   ProbabilisticObjectMaps.object_distance_threshold = 0.1;
   ProbabilisticObjectMaps.min_object_points = 600;
@@ -265,53 +285,53 @@ if enml_domain == "freiburg" then
 
 elseif enml_domain == "orebro" then
   -- datasets/orebro/logs/*.bag
-  NonMarkovLocalization.starting_location = vec2(0.0, 0.0);
-  NonMarkovLocalization.starting_angle = deg2rad(-5.0);
-  NonMarkovLocalization.map_name = "orebro";
+  enml.starting_location = vec2(0.0, 0.0);
+  enml.starting_angle = deg2rad(-5.0);
+  enml.map_name = "orebro";
 
 
   -- Parameters for LTF constraints.
-  NonMarkovLocalization.map_huber_loss = 0.05;
-  NonMarkovLocalization.max_point_to_line_distance = 0.15;
-  NonMarkovLocalization.max_angle_error = deg2rad(25.0);
-  NonMarkovLocalization.map_correlation_factor = 1.0 / 100.0;
+  enml.map_huber_loss = 0.05;
+  enml.max_point_to_line_distance = 0.15;
+  enml.max_angle_error = deg2rad(25.0);
+  enml.map_correlation_factor = 1.0 / 100.0;
 
   -- Parameters for STF constraints.
-  NonMarkovLocalization.point_match_threshold = 0.05;
-  NonMarkovLocalization.max_stf_angle_error = deg2rad(89.0);
-  NonMarkovLocalization.max_correspondences_per_point = 2;
-  NonMarkovLocalization.point_correlation_factor = 1.0 / 50.0;
+  enml.point_match_threshold = 0.05;
+  enml.max_stf_angle_error = deg2rad(89.0);
+  enml.max_correspondences_per_point = 2;
+  enml.point_correlation_factor = 1.0 / 50.0;
 
-  NonMarkovLocalization.use_visibility_constraints = false;
+  enml.use_visibility_constraints = false;
   visibility_correlation_factor = 0.002;
 
   -- Odometry Parameters
-  NonMarkovLocalization.max_odometry_delta_loc = 10.0;
-  NonMarkovLocalization.max_odometry_delta_angle = deg2rad(170.0);
-  NonMarkovLocalization.min_rotation = -1;
-  NonMarkovLocalization.min_translation = -1;
-  NonMarkovLocalization.odometry_radial_stddev_rate = 180.0;
-  NonMarkovLocalization.odometry_tangential_stddev_rate = 180.0;
-  NonMarkovLocalization.odometry_angular_stddev_rate = 180.0;
-  NonMarkovLocalization.odometry_translation_min_stddev = 0.01;
-  NonMarkovLocalization.odometry_translation_max_stddev = 1000000.5;
-  NonMarkovLocalization.odometry_rotation_min_stddev = deg2rad(1000.0);
-  NonMarkovLocalization.odometry_rotation_max_stddev = deg2rad(50000000.0);
-  NonMarkovLocalization.max_odometry_delta_loc = 1.2;
-  NonMarkovLocalization.max_odometry_delta_angle = deg2rad(180.0);
+  enml.max_odometry_delta_loc = 10.0;
+  enml.max_odometry_delta_angle = deg2rad(170.0);
+  enml.min_rotation = -1;
+  enml.min_translation = -1;
+  enml.odometry_radial_stddev_rate = 180.0;
+  enml.odometry_tangential_stddev_rate = 180.0;
+  enml.odometry_angular_stddev_rate = 180.0;
+  enml.odometry_translation_min_stddev = 0.01;
+  enml.odometry_translation_max_stddev = 1000000.5;
+  enml.odometry_rotation_min_stddev = deg2rad(1000.0);
+  enml.odometry_rotation_max_stddev = deg2rad(50000000.0);
+  enml.max_odometry_delta_loc = 1.2;
+  enml.max_odometry_delta_angle = deg2rad(180.0);
 
   -- CoBot Sensor parameters.
-  NonMarkovLocalization.laser_std_dev = 0.1;
-  NonMarkovLocalization.min_point_cloud_range = 0.1;
-  NonMarkovLocalization.max_point_cloud_range = 40.0;
-  NonMarkovLocalization.max_normal_point_distance = 0.2;
-  NonMarkovLocalization.robot_laser_offset = vec2(0.0, 0.0);
+  enml.laser_std_dev = 0.1;
+  enml.min_point_cloud_range = 0.1;
+  enml.max_point_cloud_range = 40.0;
+  enml.max_normal_point_distance = 0.2;
+  enml.robot_laser_offset = vec2(0.0, 0.0);
 
   -- MLE Optimization parameters.
-  NonMarkovLocalization.pose_increment = 10;
-  NonMarkovLocalization.max_solver_iterations = 20;
-  NonMarkovLocalization.min_episode_length = 20;
-  NonMarkovLocalization.max_history = 120;
-  NonMarkovLocalization.num_repeat_iterations = 4;
-  NonMarkovLocalization.max_repeat_iterations = 20;
+  enml.pose_increment = 10;
+  enml.max_solver_iterations = 20;
+  enml.min_episode_length = 20;
+  enml.max_history = 120;
+  enml.num_repeat_iterations = 4;
+  enml.max_repeat_iterations = 20;
 end
