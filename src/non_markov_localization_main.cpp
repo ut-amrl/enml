@@ -1130,6 +1130,40 @@ void DrawLtfs(
         classifications,
     const vector<vector<Line2f> >& ray_cast_lines,
     const vector<vector<int> >& point_line_correspondences) {
+  static const bool kDrawPredictedScan = false;
+  if (kDrawPredictedScan) {
+    static VectorMap map_;
+    map_.Load(localization_.GetCurrentMapName());
+    for (size_t i = start_pose; i <= end_pose; ++i) {
+    // for (size_t i = start_pose; i <= start_pose; ++i) {
+      const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
+      const float pose_angle = poses[3 * i + 2];
+      const Rotation2Df pose_rotation(pose_angle);
+      const Vector2f laser_loc = pose_location + pose_rotation *
+          localization_options_.sensor_offset;
+      static const int kNumRays = 180;
+      static const float kAngleMax = DegToRad(135);
+      vector<float> scan;
+      map_.GetPredictedScan(
+          laser_loc,
+          0,
+          localization_options_.kMaxRange,
+          pose_angle - kAngleMax,
+          pose_angle + kAngleMax,
+          kNumRays,
+          &scan);
+      CHECK_EQ(kNumRays, scan.size());
+      const float da = 2.0f * kAngleMax / float(kNumRays);
+      for (size_t j = 0; j < kNumRays; ++j) {
+        if (scan[j] > 0.95 * localization_options_.kMaxRange) continue;
+        const float a = pose_angle -kAngleMax + float(j) * da;
+        const Vector2f p = laser_loc + Vector2f(scan[j] * cos(a), scan[j] * sin(a));
+        DrawLine(laser_loc, p, 0x0FFF0000,
+              &display_message_);
+      }
+    }
+  }
+
   for (size_t i = start_pose; i <= end_pose; ++i) {
     const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     const float pose_angle = poses[3 * i + 2];
@@ -1166,6 +1200,7 @@ void DrawObservations(
     for (size_t j = 0; j < point_cloud.size(); ++j) {
       const Vector2f point = pose_transform * point_cloud[j];
       uint32_t point_color = 0xF0C0C0C0;
+      bool valid_point = false;
       switch (classifications[i][j]) {
         case NonMarkovLocalization::kLtfObservation : {
           point_color = kLtfPointColor;
@@ -1173,18 +1208,20 @@ void DrawObservations(
         case NonMarkovLocalization::kStfObservation : {
           // DrawLine(point, pose_location, 0x1F994CD9, &display_message_);
           point_color = kStfPointColor;
+          valid_point = true;
         } break;
         case NonMarkovLocalization::kDfObservation : {
           point_color = kDfPointColor;
+          valid_point = true;
           if (i == end_pose) continue;
         } break;
       }
-      if (kDisplayTangents) {
-        const Vector2f normal_e = pose_rotation * normal_cloud[j];
-        const Vector2f normal(normal_e.x(), normal_e.y());
-        const Vector2f tangent = 0.05 * Perp(normal);
+      if (kDisplayTangents && valid_point) {
+        const Vector2f normal = pose_rotation * normal_cloud[j];
+        // const Vector2f tangent = 0.05 * Perp(normal);
+        const Vector2f dir = 0.05 * normal;
         DrawLine<float>(
-            point + tangent, point - tangent, point_color, &display_message_);
+            point + dir, point - dir, 0x7FFF4000, &display_message_);
       }
       DrawPoint(point, point_color, &display_message_);
     }
@@ -1410,9 +1447,7 @@ void SaveSensorErrors(
   printf("Saving sensor errors... ");
   fflush(stdout);
   ClearDrawingMessage(&display_message_);
-  const Vector2f laser_loc(
-      localization_options_.sensor_offset.x(),
-      localization_options_.sensor_offset.y());
+  const Vector2f laser_loc = localization_options_.sensor_offset;
   for (size_t i = 0; i < poses.size(); ++i) {
     const PointCloudf& point_cloud = point_clouds[i];
     const Vector2f pose_loc_g =
@@ -1551,6 +1586,13 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
 }
 
 void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
+  static vector<float> normal_weights_;
+  if (normal_weights_.size() == 0) {
+    static const float stddev = 3;
+    for (int i = 0; i < 3; ++i) {
+      normal_weights_.push_back(exp(-Sq(float(i) / stddev)));
+    }
+  }
   if (debug_level_ > 1) {
     printf("LaserScan, t=%f\n", laser_message.header.stamp.toSec());
   }
@@ -1568,7 +1610,8 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
         Rotation2Df(angle) * Vector2f(range, 0.0));
   }
   NormalCloudf normal_cloud;
-  GenerateNormals(kMaxNormalPointDistance, &point_cloud, &normal_cloud);
+  GenerateNormals(kMaxNormalPointDistance,
+      normal_weights_, &point_cloud, &normal_cloud);
   if (point_cloud.size() > 1) {
     if (debug_level_ > 1) {
       printf("Sensor update, t=%f\n", laser_message.header.stamp.toSec());
