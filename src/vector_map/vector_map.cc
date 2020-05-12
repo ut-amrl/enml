@@ -369,6 +369,7 @@ void VectorMap::Cleanup() {
 }
 
 void VectorMap::Load(const string& file) {
+  if (file == file_name) return;
   FILE* fid = fopen(file.c_str(), "r");
   if (fid == NULL) {
     fprintf(stderr, "ERROR: Unable to load map %s\n", file.c_str());
@@ -392,7 +393,7 @@ bool VectorMap::Intersects(const Vector2f& v0, const Vector2f& v1) const {
   return false;
 }
 
-void OrderAndSortLineSegments(const Vector2f& loc, vector<Line2f>* lines_ptr) {
+void OrderLineSegments(const Vector2f& loc, vector<Line2f>* lines_ptr) {
   vector<Line2f>& lines = *lines_ptr;
   for (size_t i = 0; i < lines.size(); ++i) {
     Line2f& r = lines[i];
@@ -427,15 +428,15 @@ void VectorMap::GetRayToLineCorrespondences(
   vector<Line2f>& raycast = *lines_ptr;
   SceneRender(sensor_loc, max_range, -M_PI, M_PI, lines_ptr);
   // Do the dumb thing for the first cut.
-  OrderAndSortLineSegments(sensor_loc, lines_ptr);
+  OrderLineSegments(sensor_loc, lines_ptr);
   const Eigen::Matrix2f pose_rotation = Eigen::Rotation2Df(angle).toRotationMatrix();
   line_correspondences->resize(rays.size());
   for (size_t i = 0; i < rays.size(); ++i) {
     const Vector2f r = pose_rotation * rays[i];
     (*line_correspondences)[i] = -1;
     for (size_t j = 0; j < raycast.size(); ++j) {
-      if (Cross<float>(raycast[i].p0 - sensor_loc, r) > 0.0f &&
-          Cross<float>(raycast[i].p1 - sensor_loc, r) < 0.0f) {
+      if (Cross<float>(raycast[j].p0 - sensor_loc, r) > 0.0f &&
+          Cross<float>(raycast[j].p1 - sensor_loc, r) < 0.0f) {
         (*line_correspondences)[i] = j;
         break;
       }

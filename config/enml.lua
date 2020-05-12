@@ -77,25 +77,51 @@ enml = {
 if RobotConfig.name=="ut-automata" then
   enml.map_name = "GDC3";
   enml.starting_loc_x = 14.8;
-  enml.starting_loc_y = 54.4;
-  enml.starting_angle = deg2rad(0.0);
+  enml.starting_loc_y = 14.4;
+  enml.starting_angle = deg2rad(180.0);
 
-  -- -- CoBot Sensor parameters.
+  -- Hokuyo UST-10lx Sensor parameters.
   enml.laser_std_dev = 0.05;
   enml.min_point_cloud_range = 0.02;
-  enml.max_point_cloud_range = 4.9;
-  enml.max_normal_point_distance = 0.25;
+  enml.max_point_cloud_range = 9.9;
+  enml.max_normal_point_distance = 0.05;
   enml.robot_laser_offset = vec2(0.22, 0.0);
   enml.num_skip_readings = 1;
 
   -- -- Odometry parameters.
   -- -- CoBot parameters.
-  enml.min_rotation = deg2rad(5);
-  enml.min_translation = 0.6;
+  enml.min_rotation = deg2rad(2);
+  enml.min_translation = 0.1;
   -- enml.max_odometry_delta_loc = 0.2;
   -- enml.max_odometry_delta_angle = deg2rad(15.0);
   -- enml.odometry_rotation_scale = 1.0;
   -- enml.odometry_translation_scale = 1.0;
+
+
+  -- Parameters for STF constraints.
+  enml.point_match_threshold = 0.05;
+  enml.max_stf_angle_error = deg2rad(85.0);
+  enml.max_correspondences_per_point = 6;
+  enml.point_correlation_factor = 1.0 / 10.0;
+
+  -- Parameters for LTF constraints.
+  enml.map_huber_loss = 0.3;
+  enml.max_point_to_line_distance = 0.15;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 50.0;
+
+  -- Parameters for visibility constraints.
+  enml.use_visibility_constraints = true;
+  enml.visibility_correlation_factor = 0.02;
+
+  -- MLE Optimization parameters.
+  enml.pose_increment = 1;
+  enml.max_history = 20;
+  enml.max_solver_iterations = 30;
+  enml.num_repeat_iterations = 4;
+  enml.max_repeat_iterations = 8;
+  enml.return_jacobian = false;
+  enml.num_threads = 8;
 end
 
 if RobotConfig.name=="Cobot-Sim" then

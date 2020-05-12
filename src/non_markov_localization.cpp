@@ -433,16 +433,21 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
       ray_cast_ptr,
       line_correspondences_ptr);
   CHECK_EQ(line_correspondences.size(), point_cloud.size());
+  int num_ltfs = 0;
+  int num_vltfs = 0;
   for (size_t j = 0; j < point_cloud.size(); ++j) {
     const int correspondence = line_correspondences[j];
     if (correspondence >= 0) {
       const Line2f& line = ray_cast[correspondence];
+      ++num_ltfs;
       if (IsValidLTFCorrespondence(
           pose_array, point_cloud[j], normal_cloud[j], line)) {
         observation_classes[j] = kLtfObservation;
+        ++num_vltfs;
       }
     }
   }
+  // printf("LTFs: %6d %6d %6d\n", int(point_cloud.size()), num_ltfs, num_vltfs);
 }
 
 void NonMarkovLocalization::FindLTFCorrespondences(
@@ -473,18 +478,18 @@ bool NonMarkovLocalization::IsValidLTFCorrespondence(
   const Rotation2Df pose_rotation(pose[2]);
   const Vector2f point_transformed =
       pose_rotation * point + pose_location;
-  const Vector2f normal_transformed =
-      pose_rotation * normal;
+  const Vector2f normal_transformed = pose_rotation * normal;
   const bool angle_match = (fabs(line.UnitNormal().dot(normal_transformed)) >
       cos(localization_options_.kMaxAngleError));
   if (!angle_match) return false;
   const float dist_from_line = line.Distance(point_transformed);
-  const Vector2f n = line.UnitNormal();
-  if (n.dot(pose_location - line.p0) *
-      n.dot(point_transformed - line.p0) < 0.0f) {
-    // Observations are on opposite sides of the line.
-    return (dist_from_line < localization_options_.kMaxPointToLineDistance);
-  }
+  // const float dist_from_line = line.Distance(point_transformed);
+  // const Vector2f n = line.UnitNormal();
+  // if (n.dot(pose_location - line.p0) *
+  //     n.dot(point_transformed - line.p0) < 0.0f) {
+  //   // Observations are on opposite sides of the line.
+  //   return (dist_from_line < localization_options_.kMaxPointToLineDistance);
+  // }
   return (dist_from_line < localization_options_.kMaxPointToLineDistance);
 }
 

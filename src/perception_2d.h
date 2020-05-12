@@ -91,7 +91,11 @@ typedef Pose2D<float> Pose2Df;
 // Generate normals from an ordered 2D point cloud by approximating the normal
 // as being perpendicular to the tangent, which in turn is approximated by
 // connecting each point with its neighbours.
-void GenerateNormals(const float kMaxNormalPointDistance,
+void GenerateNormals(const float max_point_neighbor_distance,
+                     const std::vector<float>& weights,
+                     PointCloudf* point_cloud_ptr,
+                     NormalCloudf* normal_cloud_ptr);
+void GenerateNormals(const float max_point_neighbor_distance,
                      PointCloudf* point_cloud_ptr,
                      NormalCloudf* normal_cloud_ptr);
 
