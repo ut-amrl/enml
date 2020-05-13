@@ -911,19 +911,19 @@ void NonMarkovLocalization::AddPoseConstraints(
       axis_transform.block<1, 2>(1, 0) = tangential_direction.transpose();
       radial_translation = translation.norm();
     }
-    const float radial_std_dev = Bound<float>(
+    const float radial_std_dev = Clamp<float>(
+        localization_options_.kOdometryRadialStdDevRate * radial_translation,
         localization_options_.kOdometryTranslationMinStdDev,
-        localization_options_.kOdometryTranslationMaxStdDev,
-        localization_options_.kOdometryRadialStdDevRate * radial_translation);
-    const float tangential_std_dev = Bound<float>(
-        localization_options_.kOdometryTranslationMinStdDev,
-        localization_options_.kOdometryTranslationMaxStdDev,
+        localization_options_.kOdometryTranslationMaxStdDev);
+    const float tangential_std_dev = Clamp<float>(
         localization_options_.kOdometryTangentialStdDevRate *
-        radial_translation);
-    const float angular_std_dev = Bound<float>(
+            radial_translation,
+        localization_options_.kOdometryTranslationMinStdDev,
+        localization_options_.kOdometryTranslationMaxStdDev);
+    const float angular_std_dev = Clamp<float>(
+        localization_options_.kOdometryAngularStdDevRate * fabs(rotation),
         localization_options_.kOdometryAngularMinStdDev,
-        localization_options_.kOdometryAngularMaxStdDev,
-        localization_options_.kOdometryAngularStdDevRate * fabs(rotation));
+        localization_options_.kOdometryAngularMaxStdDev);
     if (debug) {
       printf("Adding pose constraint %d:%d @ 0x%lx : 0x%lx\n",
              static_cast<int>(i - 1), static_cast<int>(i),

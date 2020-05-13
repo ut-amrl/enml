@@ -28,9 +28,23 @@
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
 
-#include "shared/util/openmp_utils.h"
 #include "new_shared/math/math_util.h"
 #include "non_markov_localization.h"
+
+#ifdef NDEBUG
+  #ifdef _OPENMP
+    #define OMP_PARALLEL_FOR _Pragma("omp parallel for")
+    #define OMP_PARALLEL _Pragma("omp parallel")
+    #define OMP_FOR _Pragma("omp for")
+  #else
+    #warning OpenMP not detected, but in Release mode.
+    #define OMP_PARALLEL_FOR {}
+    #define OMP_PARALLEL {}
+    #define OMP_FOR {}
+  #endif  // _OPENMP
+#else
+  #define OMP_PARALLEL_FOR {}
+#endif  // NDEBUG
 
 namespace ceres {
 

@@ -45,7 +45,6 @@
 #include "enml/LidarDisplayMsg.h"
 #include "enml/LocalizationMsg.h"
 
-#include "eigen_helper.h"
 #include "non_markov_localization.h"
 #include "perception_2d.h"
 #include "popt_pp/popt_pp.h"
@@ -54,6 +53,7 @@
 #include "new_shared/ros/ros_helpers.h"
 #include "new_shared/util/helpers.h"
 #include "new_shared/util/pthread_utils.h"
+#include "new_shared/util/random.h"
 #include "new_shared/util/timer.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
@@ -69,10 +69,8 @@ using Eigen::Matrix2d;
 using Eigen::Matrix2f;
 using Eigen::Matrix3d;
 using Eigen::Matrix3f;
-using Eigen::Perp2;
 using Eigen::Rotation2Dd;
 using Eigen::Rotation2Df;
-using Eigen::ScalarCross;
 using Eigen::Translation2d;
 using Eigen::Translation2f;
 using Eigen::Vector2d;
@@ -84,6 +82,7 @@ using perception_2d::PointCloudf;
 using perception_2d::Pose2Df;
 using ros::ServiceServer;
 using ros::Subscriber;
+using std::max;
 using std::pair;
 using std::queue;
 using std::size_t;
@@ -115,6 +114,8 @@ config_reader::ConfigReader config_reader_({
 });
 
 enml::LocalizationMsg localization_msg_;
+
+util_random::Random rand_;
 }  // namespace
 
 
@@ -142,7 +143,7 @@ float kMaxPointCloudRange = 6.0;
 // Maximum distance between adjacent points to use for computation of normals.
 float kMaxNormalPointDistance = 0.03;
 // The maximum expected odometry-reported translation difference per timestep.
-float kSqMaxOdometryDeltaLoc = sq(0.2);
+float kSqMaxOdometryDeltaLoc = Sq(0.2);
 // The maximum expected odometry-reported rotation difference per timestep.
 float kMaxOdometryDeltaAngle = DegToRad(15.0);
 // Mutex to ensure only a single relocalization call is made at a time.
@@ -247,7 +248,7 @@ void ApplyNoiseModel(
   Eigen::Vector4f enc_noisy = Eigen::Vector4f::Zero();
   // Add noise.
   for (int i = 0; i < 4; ++i) {
-    enc_noisy(i) = enc(i) + randn(e * enc(i));
+    enc_noisy(i) = enc(i) + rand_.Gaussian(0, e * enc(i));
   }
   const Eigen::Vector3f delta_noisy = M_enc_to_vel * enc_noisy;
   *dx_n = delta_noisy(0);
@@ -287,11 +288,11 @@ void PublishTrace()
     trace.clear();
     trace.push_back(curLoc);
     lastLoc = curLoc;
-    if(lastLoc.squaredNorm()>sq(5.0))
+    if(lastLoc.squaredNorm()>Sq(5.0))
       initialized = true;
     return;
   }
-  if((curLoc-lastLoc).squaredNorm()>sq(0.05)){
+  if((curLoc-lastLoc).squaredNorm()>Sq(0.05)){
     trace.push_back(curLoc);
     lastLoc = curLoc;
   }
@@ -939,14 +940,14 @@ bool LoadOdometryMessage(const rosbag::MessageInstance& message,
         2.0 * atan2(odometry_message->pose.pose.orientation.z,
                     odometry_message->pose.pose.orientation.w);
     *relative_angle = kOdometryRotationScale *
-        angle_diff(odometry_message_angle , odometry_angle);
+        AngleDiff(odometry_message_angle , odometry_angle);
     if (test_set_index_ >= 0 || statistical_test_index_ >= 0) {
       relative_location->x() +=
-          randn(odometry_additive_noise_ * relative_location->x());
+          rand_.Gaussian(0, odometry_additive_noise_ * relative_location->x());
       relative_location->y() +=
-          randn(odometry_additive_noise_ * relative_location->y());
+          rand_.Gaussian(0, odometry_additive_noise_ * relative_location->y());
       (*relative_angle) +=
-          randn(odometry_additive_noise_ * (*relative_angle));
+          rand_.Gaussian(0, odometry_additive_noise_ * (*relative_angle));
     }
     return true;
   }
@@ -1081,12 +1082,10 @@ void DrawVisibilityConstraints(
       const Vector2f point_anchor =
           point_global - constraint.line_normals[j] * point_offset;
       DrawLine(point_global, point_anchor, 0xFFFF0000, &display_message_);
-      if (true) {
-        const float alpha = bound(fabs(point_offset) / 5.0, 0.0, 0.2);
-        const uint32_t colour =
-            (static_cast<uint32_t>(255.0 * alpha) << 24) | 0xFF0000;
-        DrawLine(point_global, pose_translation, colour, &display_message_);
-      }
+      const float alpha = Clamp(fabs(point_offset) / 5.0, 0.0, 0.2);
+      const uint32_t colour =
+          (static_cast<uint32_t>(255.0 * alpha) << 24) | 0xFF0000;
+      DrawLine(point_global, pose_translation, colour, &display_message_);
     }
   }
 }
@@ -1514,7 +1513,7 @@ void BatchLocalize(const string& bag_file, const string& keyframes_file,
                               return_initial_poses, &poses, &classifications);
 
   const double process_time = GetMonotonicTime() - t_start;
-  printf("Done in %.3fs, bag time %.3fs (%.3fx).\n",
+  printf("\nDone in %.3fs, bag time %.3fs (%.3fx).\n",
          process_time, bag_duration, bag_duration / process_time);
   ClearDrawingMessage(&display_message_);
   DisplayPoses(poses, point_clouds, normal_clouds, classifications);
@@ -1543,7 +1542,7 @@ void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
                        odometry_msg.pose.pose.position.y);
   Vector2f p_delta =
       Rotation2Df(-old_theta) * (p_new - p_old);
-  float d_theta = angle_diff<float>(new_theta, old_theta);
+  float d_theta = AngleDiff(new_theta, old_theta);
   if (debug_level_ > 1) {
     printf("Standard Odometry %8.3f %8.3f %8.3f, t=%f\n",
            p_delta.x(), p_delta.y(), RadToDeg(d_theta),
@@ -1691,7 +1690,7 @@ float CheckLaserOverlap(const sensor_msgs::LaserScan& scan1,
   // Compute the relative delta transform.
   const Vector2f delta_loc =
       Rotation2Df(-pose1.angle) * (pose2.translation - pose1.translation);
-  const float delta_angle = angle_diff(pose2.angle, pose1.angle);
+  const float delta_angle = AngleDiff(pose2.angle, pose1.angle);
   const Affine2f delta_transform =
       Translation2f(delta_loc) * Rotation2Df(delta_angle);
   vector<pair<float, Vector2f> > new_point_cloud(ranges2.size());
@@ -2142,9 +2141,9 @@ int main(int argc, char** argv) {
   const bool running_tests =
       (test_set_index_ >= 0 || statistical_test_index_ >= 0);
   if (running_tests) {
-    const unsigned int seed = time(NULL);
-    srand(seed);
-    printf("Seeding with %u test=%.5f\n", seed, randn(1.0f));
+    const unsigned long seed = time(NULL);
+    rand_ = util_random::Random(seed);
+    printf("Seeding with %lu test=%.5f\n", seed, rand_.Gaussian(0, 1));
   }
   const string node_name =
       (running_tests || unique_node_name) ?
