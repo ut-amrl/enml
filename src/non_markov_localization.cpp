@@ -1294,7 +1294,7 @@ void NonMarkovLocalization::Update() {
   for (int i = 0; !converged && i < localization_options_.kMaxRepeatIterations;
        ++i) {
     ceres::Problem problem;
-    if (true) {
+    if (false) {
       static const int kOpenPoses = 40;
       if (poses_.size() > kOpenPoses) {
         const int N = poses_.size() - kOpenPoses;
