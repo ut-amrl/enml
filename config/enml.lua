@@ -77,7 +77,7 @@ enml = {
 if RobotConfig.name=="ut-automata" then
   enml.map_name = "GDC3";
   enml.starting_loc_x = 14.8;
-  enml.starting_loc_y = 14.4;
+  enml.starting_loc_y = 114.4;
   enml.starting_angle = deg2rad(180.0);
 
   -- Hokuyo UST-10lx Sensor parameters.
@@ -86,7 +86,7 @@ if RobotConfig.name=="ut-automata" then
   enml.max_point_cloud_range = 9.9;
   enml.max_normal_point_distance = 0.05;
   enml.robot_laser_offset = vec2(0.22, 0.0);
-  enml.num_skip_readings = 1;
+  enml.num_skip_readings = 4;
 
   -- -- Odometry parameters.
   -- -- CoBot parameters.
@@ -117,9 +117,9 @@ if RobotConfig.name=="ut-automata" then
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
   enml.max_history = 20;
-  enml.max_solver_iterations = 30;
-  enml.num_repeat_iterations = 4;
-  enml.max_repeat_iterations = 8;
+  enml.max_solver_iterations = 10;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
   enml.num_threads = 8;
 end
