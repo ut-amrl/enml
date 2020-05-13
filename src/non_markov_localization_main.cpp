@@ -35,29 +35,29 @@
 #include <utility>
 #include <vector>
 
-#include "eigen_helper.h"
-#include "helpers.h"
-#include "non_markov_localization.h"
 #include "nav_msgs/Odometry.h"
-#include "perception_2d.h"
-#include "popt_pp.h"
-#include "proghelp.h"
-#include "pthread_utils.h"
 #include "ros/ros.h"
 #include "ros/package.h"
 #include "rosbag/bag.h"
 #include "rosbag/view.h"
+#include "sensor_msgs/LaserScan.h"
+
+#include "enml/LidarDisplayMsg.h"
+#include "enml/LocalizationMsg.h"
+
+#include "eigen_helper.h"
+#include "non_markov_localization.h"
+#include "perception_2d.h"
+#include "popt_pp/popt_pp.h"
 #include "new_shared/math/geometry.h"
 #include "new_shared/math/math_util.h"
 #include "new_shared/ros/ros_helpers.h"
+#include "new_shared/util/helpers.h"
+#include "new_shared/util/pthread_utils.h"
 #include "new_shared/util/timer.h"
-#include "sensor_msgs/LaserScan.h"
-#include "util.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
 #include "gui_publisher_helper.h"
-#include "enml/LidarDisplayMsg.h"
-#include "enml/LocalizationMsg.h"
 #include "config_reader/config_reader.h"
 
 using cobot_gui::DrawLine;
@@ -1500,15 +1500,6 @@ void BatchLocalize(const string& bag_file, const string& keyframes_file,
 
   if (debug_level_ > 0) {
     localization_options_.CorrespondenceCallback = CorrespondenceCallback;
-    // Reset localization_gui to correct map.
-    printf("TODO: %s\n", __FUNCTION__);
-//     enml::CobotLocalizationMsg localization_msg_;
-//     localization_msg_.timeStamp = GetWallTime();
-//     localization_msg_.map = kMapName;
-//     localization_msg_.x = 0;
-//     localization_msg_.y = 0;
-//     localization_msg_.angle = 0;
-//     localization_publisher_.publish(localization_msg_);
   }
   ClearDrawingMessage(&display_message_);
   DisplayPoses(poses, point_clouds, normal_clouds, classifications);
