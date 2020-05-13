@@ -1264,6 +1264,7 @@ float NonMarkovLocalization::GetLostMetric() const {
 }
 
 void NonMarkovLocalization::Update() {
+  // FunctionTimer ft(__FUNCTION__);
   static const bool debug = false;
   // Accepts:
   //  1. Non-Markov Localization paramters.
@@ -1290,6 +1291,7 @@ void NonMarkovLocalization::Update() {
   bool converged = false;
   for (int i = 0; !converged && i < localization_options_.kMaxRepeatIterations;
        ++i) {
+    // FunctionTimer callback(StringPrintf("Iteration %d", i).c_str());
     if (debug) {
       printf("Localization update iteration %5d, poses %5lu:%5lu\n",
              i, min_poses, max_poses);
