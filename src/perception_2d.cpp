@@ -78,7 +78,7 @@ void GenerateNormals(const float max_point_neighbor_distance,
   PointCloudf& point_cloud = *point_cloud_ptr;
   NormalCloudf& normal_cloud = *normal_cloud_ptr;
   normal_cloud.resize(point_cloud.size());
-  for (size_t i = 0; i < int(point_cloud.size()); ++i) {
+  for (size_t i = 0; i < point_cloud.size(); ++i) {
     float count = 0.0;
     Vector2f normal(0.0, 0.0);
     if (i > 0 &&

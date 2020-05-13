@@ -35,8 +35,8 @@
 #include "ceres/ceres.h"
 #include "ceres/dynamic_autodiff_cost_function.h"
 #include "perception_2d.h"
-#include "shared/util/helpers.h"
-#include "shared/util/pthread_utils.h"
+#include "new_shared/util/helpers.h"
+#include "new_shared/util/pthread_utils.h"
 #include "new_shared/util/random.h"
 #include "new_shared/util/timer.h"
 #include "new_shared/math/geometry.h"
@@ -211,7 +211,7 @@ void* NonMarkovLocalization::UpdateThreadFunction(
     if (non_markov_localization.terminate_) break;
     // Run update with a scoped lock.
     {
-      ScopedLock lock(non_markov_localization.update_mutex_);
+      ScopedLock lock(&non_markov_localization.update_mutex_);
       non_markov_localization.Update();
     }
   }
@@ -1126,13 +1126,15 @@ bool NonMarkovLocalization::BatchLocalize(
           termination_type = "UNKNOWN";
         }
       }
-      fprintf(fid, "%5d %5d %5d %5d %5d %s\n",
-              i,
-              static_cast<int>(min_poses),
-              static_cast<int>(max_poses),
-              summary.num_successful_steps,
-              summary.num_unsuccessful_steps,
-              termination_type.c_str());
+      if (fid()) {
+        fprintf(fid, "%5d %5d %5d %5d %5d %s\n",
+                i,
+                static_cast<int>(min_poses),
+                static_cast<int>(max_poses),
+                summary.num_successful_steps,
+                summary.num_unsuccessful_steps,
+                termination_type.c_str());
+      }
     }
     if (summary.num_successful_steps < 1 &&
         summary.termination_type == ceres::CONVERGENCE) {
@@ -1672,7 +1674,7 @@ void NonMarkovLocalization::AddPose(
 
   if (static_cast<int>(pending_relative_poses_.size()) >=
       localization_options_.kPoseIncrement) {
-    ScopedTryLock lock(update_mutex_);
+    ScopedTryLock lock(&update_mutex_);
     if (lock.Locked()) {
       // Copy over pending nodes to current nodes.
       AddPendingPoseNodes();
@@ -1703,7 +1705,7 @@ bool NonMarkovLocalization::GetNodeData(
     vector<Pose2Df>* pending_poses,
     vector<vector<ObservationType> >* observation_classes,
     Pose2Df* latest_pose) const {
-  ScopedTryLock lock(update_mutex_);
+  ScopedTryLock lock(&update_mutex_);
   if (!lock.Locked()) return false;
   *poses = poses_;
   *pose_ids = pose_ids_;
@@ -1727,7 +1729,7 @@ Pose2Df NonMarkovLocalization::GetLastMLEPose() const {
 
 void NonMarkovLocalization::Initialize(const Pose2Df& pose,
                                        const string& map_name) {
-  ScopedLock lock(update_mutex_);
+  ScopedLock lock(&update_mutex_);
   ClearPoses();
   latest_mle_pose_.Set(pose);
   if (map_name != map_name_) {
@@ -1741,7 +1743,7 @@ string NonMarkovLocalization::GetCurrentMapName() const {
 }
 
 bool NonMarkovLocalization::RunningSolver() const {
-  ScopedTryLock lock(update_mutex_);
+  ScopedTryLock lock(&update_mutex_);
   return (!lock.Locked());
 }
 
@@ -1751,14 +1753,14 @@ vector<Pose2Df> NonMarkovLocalization::GetLoggedPoses() const {
 
 std::vector<int> NonMarkovLocalization::GetLoggedEpisodeLengths() const {
   std::vector<int> episode_lengths;
-  ScopedLock lock(update_mutex_);
+  ScopedLock lock(&update_mutex_);
   episode_lengths = logged_episode_lengths_;
   return (episode_lengths);
 }
 
 void NonMarkovLocalization::Finalize() {
   if (pending_point_clouds_.size() > 0) {
-    ScopedLock lock(update_mutex_);
+    ScopedLock lock(&update_mutex_);
     // Copy over pending nodes to current nodes.
     AddPendingPoseNodes();
     // Reset cumulative pending pose.
@@ -1774,7 +1776,7 @@ void NonMarkovLocalization::Finalize() {
   } while (pending_updates > 0);
 
   {
-    ScopedLock lock(update_mutex_);
+    ScopedLock lock(&update_mutex_);
     TrimEpisode(poses_.size());
   }
 }

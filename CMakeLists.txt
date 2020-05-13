@@ -74,37 +74,14 @@ SET(libs roslib roscpp ncurses popt pthread glut boost_system
     ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
     ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11 amrl-shared-lib)
 
-SET(SHARED_SRCS
-  src/shared/math/gvector.h
-  src/shared/math/line.h
-  src/shared/math/gvector.cpp
-  src/shared/math/geomalgo.h
-  src/shared/math/geometry.h
-  src/shared/util/helpers.cpp
-  src/shared/util/proghelp.cc
-  src/shared/util/pthread_utils.cpp
-  src/shared/util/terminal_utils.cpp
-  src/shared/util/configreader.cpp
-  src/shared/util/watch_files.cpp
-)
-
 SET(GUI_SRCS
   src/gui/vector_display.cpp
   src/gui/gui_publisher_helper.cpp
   src/gui/gltext.cpp
 )
 
-# qt4_wrap_cpp(GUI_MOC_SRCS
-#   src/gui/vector_display.h
-# )
-
-
 #===============================================================================
 #Creating libraries to eliminate redundant compile steps
-
-ADD_LIBRARY(shared_libraries SHARED ${SHARED_SRCS})
-ADD_DEPENDENCIES(shared_libraries rosbuild_precompile)
-TARGET_LINK_LIBRARIES(shared_libraries shared_libraries ${libs})
 
 # ROSBUILD_ADD_LIBRARY(vector_display
 #     src/gui/py_vector_display.cpp
@@ -120,7 +97,6 @@ ROSBUILD_ADD_EXECUTABLE(enml
     src/perception_2d.cpp
     src/vector_map/vector_map.cc)
 ADD_DEPENDENCIES(enml
-    shared_libraries
     rosbuild_precompile
     ceres)
-TARGET_LINK_LIBRARIES(enml shared_libraries ceres ${libs})
+TARGET_LINK_LIBRARIES(enml ceres ${libs})

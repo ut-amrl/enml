@@ -56,10 +56,9 @@ class ScopedFile {
 
   // Constructor that opens the specified file in the specified mode.
   ScopedFile(const std::string& file_name,
-             const char* mode,
-             bool print_error = false) :
+             const char* mode) :
       fid_(NULL) {
-    Open(file_name, mode, print_error);
+    Open(file_name, mode);
   }
 
   // Destructor.
@@ -74,15 +73,12 @@ class ScopedFile {
 
   // Open a file explicitly.
   void Open(const std::string& file_name,
-             const char* mode,
-             bool print_error = false) {
+             const char* mode) {
     if (fid_) fclose(fid_);
     fid_ = fopen(file_name.c_str(), mode);
     if (fid_ == NULL) {
-      if (print_error) {
-        const std::string error_string = "Error opening \"" + file_name + "\"";
-        perror(error_string.c_str());
-      }
+      const std::string error_string = "Error opening \"" + file_name + "\"";
+      perror(error_string.c_str());
     } else if (kDebug){
       printf("fopen: 0x%08X\n", fileno(fid_));
     }
