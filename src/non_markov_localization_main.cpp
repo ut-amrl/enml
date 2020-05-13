@@ -48,13 +48,13 @@
 #include "non_markov_localization.h"
 #include "perception_2d.h"
 #include "popt_pp/popt_pp.h"
-#include "new_shared/math/geometry.h"
-#include "new_shared/math/math_util.h"
-#include "new_shared/ros/ros_helpers.h"
-#include "new_shared/util/helpers.h"
-#include "new_shared/util/pthread_utils.h"
-#include "new_shared/util/random.h"
-#include "new_shared/util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/math_util.h"
+#include "shared/ros/ros_helpers.h"
+#include "shared/util/helpers.h"
+#include "shared/util/pthread_utils.h"
+#include "shared/util/random.h"
+#include "shared/util/timer.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
 #include "gui_publisher_helper.h"
@@ -1188,7 +1188,7 @@ void DrawObservations(
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications) {
   static const bool kDisplayTangents = false;
-  for (size_t i = start_pose; i <= end_pose; ++i) {
+  for (size_t i = 0; i <= end_pose; ++i) {
     const vector<Vector2f> &point_cloud = point_clouds[i];
     const vector<Vector2f> &normal_cloud = normal_clouds[i];
     const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
@@ -1200,20 +1200,22 @@ void DrawObservations(
       const Vector2f point = pose_transform * point_cloud[j];
       uint32_t point_color = 0xF0C0C0C0;
       bool valid_point = false;
-      switch (classifications[i][j]) {
-        case NonMarkovLocalization::kLtfObservation : {
-          point_color = kLtfPointColor;
-        } break;
-        case NonMarkovLocalization::kStfObservation : {
-          // DrawLine(point, pose_location, 0x1F994CD9, &display_message_);
-          point_color = kStfPointColor;
-          valid_point = true;
-        } break;
-        case NonMarkovLocalization::kDfObservation : {
-          point_color = kDfPointColor;
-          valid_point = true;
-          if (i == end_pose) continue;
-        } break;
+      if (i >= start_pose) {
+        switch (classifications[i][j]) {
+          case NonMarkovLocalization::kLtfObservation : {
+            point_color = kLtfPointColor;
+          } break;
+          case NonMarkovLocalization::kStfObservation : {
+            // DrawLine(point, pose_location, 0x1F994CD9, &display_message_);
+            point_color = kStfPointColor;
+            valid_point = true;
+          } break;
+          case NonMarkovLocalization::kDfObservation : {
+            point_color = kDfPointColor;
+            valid_point = true;
+            if (i == end_pose) continue;
+          } break;
+        }
       }
       if (kDisplayTangents && valid_point) {
         const Vector2f normal = pose_rotation * normal_cloud[j];

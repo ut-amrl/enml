@@ -35,14 +35,14 @@
 #include "ceres/ceres.h"
 #include "ceres/dynamic_autodiff_cost_function.h"
 #include "perception_2d.h"
-#include "new_shared/util/helpers.h"
-#include "new_shared/util/pthread_utils.h"
-#include "new_shared/util/random.h"
-#include "new_shared/util/timer.h"
-#include "new_shared/math/geometry.h"
-#include "new_shared/math/line2d.h"
-#include "new_shared/math/math_util.h"
-#include "new_shared/math/statistics.h"
+#include "shared/util/helpers.h"
+#include "shared/util/pthread_utils.h"
+#include "shared/util/random.h"
+#include "shared/util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/line2d.h"
+#include "shared/math/math_util.h"
+#include "shared/math/statistics.h"
 #include "residual_functors.h"
 #include "vector_map/vector_map.h"
 
@@ -1279,7 +1279,7 @@ void NonMarkovLocalization::Update() {
   SetSolverOptions(localization_options_, &solver_options);
 
   int repeat_iterations = 0;
-  const size_t min_poses = 0;
+  size_t min_poses = 0;
   const size_t max_poses = point_clouds_.size() - 1;
   ResetObservationClasses(min_poses, max_poses);
   if (point_clouds_.size() < 2) return;
@@ -1293,6 +1293,17 @@ void NonMarkovLocalization::Update() {
   bool converged = false;
   for (int i = 0; !converged && i < localization_options_.kMaxRepeatIterations;
        ++i) {
+    ceres::Problem problem;
+    if (true) {
+      static const int kOpenPoses = 40;
+      if (poses_.size() > kOpenPoses) {
+        const int N = poses_.size() - kOpenPoses;
+        min_poses = N;
+        for (int j = 0; j < N; ++j) {
+          problem.AddParameterBlock(&pose_array_[3 * j], 3);
+        }
+      }
+    }
     // FunctionTimer callback(StringPrintf("Iteration %d", i).c_str());
     if (debug) {
       printf("Localization update iteration %5d, poses %5lu:%5lu\n",
@@ -1304,7 +1315,6 @@ void NonMarkovLocalization::Update() {
     if (kUseRelativeConstraints) {
       RecomputeRelativePoses();
     }
-    ceres::Problem problem;
     // First add the visibility constraints and mark which ray cast line
     // segments have visibility constraint violations.
     // For those line segments with a large mean visibility constraint error

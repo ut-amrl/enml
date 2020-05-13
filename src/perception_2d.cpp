@@ -24,7 +24,7 @@
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
-#include "new_shared/math/math_util.h"
+#include "shared/math/math_util.h"
 
 using Eigen::Rotation2Df;
 using Eigen::Vector2f;
@@ -53,7 +53,7 @@ void GenerateNormals(const float max_point_neighbor_distance,
       if (k >= 0 &&
           k < int(point_cloud.size()) &&
           (point_cloud[i] - point_cloud[k]).squaredNorm() < kSqMaxDist) {
-        const float w = 1.0; // weights[abs(j)];
+        const float w = weights[abs(j)];
         weight += w;
         if (j > 0) {
           tangent += w * (point_cloud[i] - point_cloud[k]).normalized();

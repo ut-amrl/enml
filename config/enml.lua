@@ -75,13 +75,13 @@ enml = {
 };
 
 if RobotConfig.name=="ut-jackal" then
-  enml.map_name = "EmptyMap";
+  enml.map_name = "Joydeepb-Driveway";
   enml.starting_loc_x = 0;
   enml.starting_loc_y = 0;
   enml.starting_angle = deg2rad(0.0);
 
   -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(2);
+  enml.min_rotation = deg2rad(0.5);
   enml.min_translation = 0.75;
 
   -- VLP16 Sensor parameters.
@@ -93,17 +93,27 @@ if RobotConfig.name=="ut-jackal" then
   enml.num_skip_readings = 1;
 
   -- Parameters for STF constraints.
-  enml.point_match_threshold = 0.15;
+  enml.point_match_threshold = 0.35;
   enml.max_stf_angle_error = deg2rad(35.0);
   enml.max_correspondences_per_point = 10;
   enml.point_correlation_factor = 1.0 / 5.0;
+
+  -- Parameters for LTF constraints.
+  enml.map_huber_loss = 0.6;
+  enml.max_point_to_line_distance = 0.35;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 10.0;
+
+  -- Parameters for visibility constraints.
+  enml.use_visibility_constraints = false;
+  enml.visibility_correlation_factor = 0.02;
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
   enml.max_history = 20;
   enml.max_solver_iterations = 20;
-  enml.num_repeat_iterations = 2;
-  enml.max_repeat_iterations = 5;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 2;
   enml.return_jacobian = false;
   enml.num_threads = 12;
 end
