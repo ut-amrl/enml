@@ -133,9 +133,10 @@ class NonMarkovLocalization {
     float kVisibilityCorrelationFactor;
     bool use_visual_odometry;
     bool log_poses;
+    bool limit_history;
     // Location of the sensor with respect to the robot center. Assumes that
     // the sensor is forward-facing w.r.t. the robot.
-    Eigen::Vector2f sensor_offset;
+    Eigen::Vector3f sensor_offset;
     void (*CorrespondenceCallback)(
       const std::vector<double>& poses,
       const std::vector<perception_2d::PointCloudf>& point_clouds,

@@ -423,8 +423,8 @@ void VectorMap::GetRayToLineCorrespondences(
     const float max_range,
     vector<Line2f>* lines_ptr,
     vector<int>* line_correspondences) const {
-  static CumulativeFunctionTimer function_timer_(__FUNCTION__);
-  CumulativeFunctionTimer::Invocation invoke(&function_timer_);
+  // static CumulativeFunctionTimer function_timer_(__FUNCTION__);
+  // CumulativeFunctionTimer::Invocation invoke(&function_timer_);
   vector<Line2f>& raycast = *lines_ptr;
   SceneRender(sensor_loc, max_range, -M_PI, M_PI, lines_ptr);
   // Do the dumb thing for the first cut.

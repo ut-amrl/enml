@@ -36,14 +36,17 @@
 #include <vector>
 
 #include "nav_msgs/Odometry.h"
+#include "pcl_ros/point_cloud.h"
 #include "ros/ros.h"
 #include "ros/package.h"
 #include "rosbag/bag.h"
 #include "rosbag/view.h"
 #include "sensor_msgs/LaserScan.h"
+#include "sensor_msgs/PointCloud2.h"
 
 #include "enml/LidarDisplayMsg.h"
 #include "enml/LocalizationMsg.h"
+#include "enml/VisualizationMsg.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -59,6 +62,7 @@
 #include "residual_functors.h"
 #include "gui_publisher_helper.h"
 #include "config_reader/config_reader.h"
+#include "visualization/visualization.h"
 
 using cobot_gui::DrawLine;
 using cobot_gui::DrawPoint;
@@ -76,6 +80,7 @@ using Eigen::Translation2f;
 using Eigen::Vector2d;
 using Eigen::Vector2f;
 using Eigen::Vector3d;
+using Eigen::Vector3f;
 using perception_2d::GenerateNormals;
 using perception_2d::NormalCloudf;
 using perception_2d::PointCloudf;
@@ -83,6 +88,7 @@ using perception_2d::Pose2Df;
 using ros::ServiceServer;
 using ros::Subscriber;
 using std::max;
+using std::min;
 using std::pair;
 using std::queue;
 using std::size_t;
@@ -98,6 +104,9 @@ using namespace math_util;
 typedef KDNodeValue<float, 2> KDNodeValue2f;
 
 namespace {
+// Name of the topic that point cloud data (e.g. from VLP16) is published on.
+CONFIG_STRING(pcl_topic, "RobotConfig.pointcloud_topic");
+
 // Name of the topic that scan data is published on.
 CONFIG_STRING(scan_topic, "RobotConfig.scan_topic");
 
@@ -113,7 +122,13 @@ config_reader::ConfigReader config_reader_({
   "config/enml.lua"
 });
 
+// ROS message for publishing SE(2) pose with map name.
 enml::LocalizationMsg localization_msg_;
+
+// ROS message for visualization with WebViz.
+enml::VisualizationMsg visualization_msg_;
+
+const bool kUseWebViz = false;
 
 util_random::Random rand_;
 }  // namespace
@@ -182,6 +197,9 @@ enml::LidarDisplayMsg display_message_;
 
 // ROS publisher to publish display_message_.
 ros::Publisher display_publisher_;
+
+// ROS publisher to publish WebViz message.
+ros::Publisher visualization_publisher_;
 
 // ROS publisher to publish the latest robot localization.
 ros::Publisher localization_publisher_;
@@ -276,8 +294,7 @@ void PublishLocation() {
   localization_publisher_.publish(localization_msg_);
 }
 
-void PublishTrace()
-{
+void PublishTrace() {
   Pose2Df latest_pose = localization_.GetLatestPose();
   static vector<Vector2f> trace;
   static Vector2f lastLoc;
@@ -301,18 +318,21 @@ void PublishTrace()
     if((trace[i]-trace[i+1]).squaredNorm()>1.0)
       continue;
     DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);
   }
   // printf("trace: %d locations\n",int(trace.size()));
 }
 
 void ClearDisplay() {
   ClearDrawingMessage(&display_message_);
-  display_publisher_.publish(display_message_);
+  if (kUseWebViz) visualization::ClearVisualizationMsg(visualization_msg_);
 }
 
 void PublishDisplay() {
   display_publisher_.publish(display_message_);
   ClearDrawingMessage(&display_message_);
+  if (kUseWebViz) visualization_publisher_.publish(visualization_msg_);
+  if (kUseWebViz) visualization::ClearVisualizationMsg(visualization_msg_);
 }
 
 int kbhit() {
@@ -371,8 +391,9 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(max_point_cloud_range);
   ENML_FLOAT_CONFIG(max_normal_point_distance);
 
-  CONFIG_FLOAT(robot_laser_offset_x, "enml.robot_laser_offset.x");
-  CONFIG_FLOAT(robot_laser_offset_y, "enml.robot_laser_offset.y");
+  CONFIG_FLOAT(robot_sensor_offset_x, "enml.robot_sensor_offset.x");
+  CONFIG_FLOAT(robot_sensor_offset_y, "enml.robot_sensor_offset.y");
+  CONFIG_FLOAT(robot_sensor_offset_z, "enml.robot_sensor_offset.z");
   ENML_FLOAT_CONFIG(min_rotation);
   ENML_FLOAT_CONFIG(min_translation);
   ENML_INT_CONFIG(max_correspondences_per_point);
@@ -400,6 +421,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_UINT_CONFIG(min_episode_length);
   ENML_UINT_CONFIG(num_threads);
   ENML_BOOL_CONFIG(use_visibility_constraints);
+  ENML_BOOL_CONFIG(limit_history);
   ENML_FLOAT_CONFIG(visibility_correlation_factor);
   ENML_UINT_CONFIG(num_skip_readings);
   ENML_FLOAT_CONFIG(max_update_period);
@@ -440,8 +462,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   options->max_solver_iterations = CONFIG_max_solver_iterations;
   options->use_visibility_constraints = CONFIG_use_visibility_constraints;
   options->kVisibilityCorrelationFactor = CONFIG_visibility_correlation_factor;
-  options->sensor_offset = Vector2f(
-      CONFIG_robot_laser_offset_x, CONFIG_robot_laser_offset_y);
+  options->limit_history = CONFIG_limit_history;
 
   kStartingLocation = Vector2f(CONFIG_starting_loc_x, CONFIG_starting_loc_y);
   kStartingAngle = CONFIG_starting_angle;
@@ -465,8 +486,9 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
 
   options->kMinRange = kMinPointCloudRange;
   options->kMaxRange = kMaxPointCloudRange;
-  options->sensor_offset.x() = CONFIG_robot_laser_offset_x;
-  options->sensor_offset.y() = CONFIG_robot_laser_offset_y;
+  options->sensor_offset.x() = CONFIG_robot_sensor_offset_x;
+  options->sensor_offset.y() = CONFIG_robot_sensor_offset_y;
+  options->sensor_offset.z() = CONFIG_robot_sensor_offset_z;
   options->minimum_node_rotation = CONFIG_min_rotation;
   options->minimum_node_translation = CONFIG_min_translation;
   options->kMaxCorrespondencesPerPoint = CONFIG_max_correspondences_per_point;
@@ -531,6 +553,7 @@ void SaveStfs(
       const Vector2f p = pose_transform * point_clouds[i][j];
       if (kDisplaySteps) {
         DrawLine(p, poses[i].translation, 0x1FC0C0C0, &display_message_);
+        if (kUseWebViz) visualization::DrawLine(p, poses[i].translation, 0x1FC0C0C0, visualization_msg_);
       }
       if (!kSaveAllObservations &&
           classifications[i][j] != NonMarkovLocalization::kStfObservation) {
@@ -605,6 +628,7 @@ void DisplayPoses(const vector<Pose2Df>& poses,
   for (size_t i = 0; i + 1 < poses.size(); ++i) {
     DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor,
              &display_message_);
+    if (kUseWebViz) visualization::DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor, visualization_msg_);
   }
 
   // Add laser scans.
@@ -632,7 +656,9 @@ void DisplayPoses(const vector<Pose2Df>& poses,
         }
       }
       DrawPoint(p, color, &display_message_);
+      if (kUseWebViz) visualization::DrawPoint(p, color, visualization_msg_);
       // DrawLine(p, pose_location, 0x3Fc0c0c0, &display_message_);
+      // if (kUseWebViz) visualization::DrawLine(p, pose_location, 0x3Fc0c0c0, visualization_msg_);
     }
   }
   PublishDisplay();
@@ -737,7 +763,7 @@ void DisplayDebug() {
   }
   t_last = GetMonotonicTime();
   const int skip_scans = (debug_level_ < 1) ? 8 : 2;
-  ClearDrawingMessage(&display_message_);
+  ClearDisplay();
   if (debug || debug_level_ > 1) {
     printf("%4lu nodes, %3lu pending nodes\n",
            poses.size(), pending_poses.size());
@@ -746,6 +772,7 @@ void DisplayDebug() {
   for (size_t i = 0; i + 1 < poses.size(); ++i) {
     DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor,
              &display_message_);
+    if (kUseWebViz) visualization::DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor, visualization_msg_);
   }
 
   // Add laser scans.
@@ -770,6 +797,7 @@ void DisplayDebug() {
         } break;
       }
       DrawPoint(p, color, &display_message_);
+      if (kUseWebViz) visualization::DrawPoint(p, color, visualization_msg_);
     }
   }
 
@@ -782,9 +810,10 @@ void DisplayDebug() {
         Rotation2Df(pose.angle) * Vector2f(0.3, 0.0);
     //DrawLine(p0, p1, 0x7FC0C0C0, &display_message_);
     DrawLine(p0, p1, 0x7F0000FF, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(p0, p1, 0x7F0000FF, visualization_msg_);
     DrawPoint(p0, 0xFFFF0000, &display_message_);
   }
-  display_publisher_.publish(display_message_);
+  PublishDisplay();
 }
 
 void GetCovarianceFromRelativePose(const Vector2f& relative_location,
@@ -854,6 +883,9 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
 
   // Add laser scan to list of entries.
   PointCloudf point_cloud;
+  const Vector2f sensor_offset(
+      localization_options_.sensor_offset.x(),
+      localization_options_.sensor_offset.y());
   for (unsigned int i = 0; i < laser_message->ranges.size(); ++i) {
     if (laser_message->ranges[i] < kMinPointCloudRange ||
         laser_message->ranges[i] > kMaxPointCloudRange ||
@@ -870,8 +902,8 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
       CHECK_LT(angle_index, static_cast<int>(laser_corrections_.size()));
       range = range * laser_corrections_[angle_index];
     }
-    point_cloud.push_back(localization_options_.sensor_offset +
-        Rotation2Df(angle) * Vector2f(range, 0.0));
+    point_cloud.push_back(
+        sensor_offset + Rotation2Df(angle) * Vector2f(range, 0.0));
   }
 
   NormalCloudf normal_cloud;
@@ -1082,10 +1114,12 @@ void DrawVisibilityConstraints(
       const Vector2f point_anchor =
           point_global - constraint.line_normals[j] * point_offset;
       DrawLine(point_global, point_anchor, 0xFFFF0000, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(point_global, point_anchor, 0xFFFF0000, visualization_msg_);
       const float alpha = Clamp(fabs(point_offset) / 5.0, 0.0, 0.2);
       const uint32_t colour =
           (static_cast<uint32_t>(255.0 * alpha) << 24) | 0xFF0000;
       DrawLine(point_global, pose_translation, colour, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(point_global, pose_translation, colour, visualization_msg_);
     }
   }
 }
@@ -1112,6 +1146,7 @@ void DrawStfs(
       const Vector2f p0 = pose_tf0 * point_point_correspondences[i].points0[j];
       const Vector2f p1 = pose_tf1 * point_point_correspondences[i].points1[j];
       DrawLine(p0, p1, kStfCorrespondenceColor, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(p0, p1, kStfCorrespondenceColor, visualization_msg_);
       mse += (p0 - p1).squaredNorm() / n;
     }
   }
@@ -1131,6 +1166,9 @@ void DrawLtfs(
     const vector<vector<int> >& point_line_correspondences) {
   static const bool kDrawPredictedScan = false;
   if (kDrawPredictedScan) {
+    const Vector2f sensor_offset(
+        localization_options_.sensor_offset.x(),
+      localization_options_.sensor_offset.y());
     static VectorMap map_;
     map_.Load(localization_.GetCurrentMapName());
     for (size_t i = start_pose; i <= end_pose; ++i) {
@@ -1138,8 +1176,8 @@ void DrawLtfs(
       const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
       const float pose_angle = poses[3 * i + 2];
       const Rotation2Df pose_rotation(pose_angle);
-      const Vector2f laser_loc = pose_location + pose_rotation *
-          localization_options_.sensor_offset;
+      const Vector2f laser_loc =
+          pose_location + pose_rotation * sensor_offset;
       static const int kNumRays = 180;
       static const float kAngleMax = DegToRad(135);
       vector<float> scan;
@@ -1157,8 +1195,8 @@ void DrawLtfs(
         if (scan[j] > 0.95 * localization_options_.kMaxRange) continue;
         const float a = pose_angle -kAngleMax + float(j) * da;
         const Vector2f p = laser_loc + Vector2f(scan[j] * cos(a), scan[j] * sin(a));
-        DrawLine(laser_loc, p, 0x0FFF0000,
-              &display_message_);
+        DrawLine(laser_loc, p, 0x0FFF0000, &display_message_);
+        if (kUseWebViz) visualization::DrawLine(laser_loc, p, 0x0FFF0000, visualization_msg_);
       }
     }
   }
@@ -1176,6 +1214,8 @@ void DrawLtfs(
       const Vector2f point_projected = line.Projection(point);
       DrawLine(point, point_projected, kLtfCorrespondenceColor,
               &display_message_);
+      if (kUseWebViz) visualization::DrawLine(point, point_projected, kLtfCorrespondenceColor,
+              visualization_msg_);
     }
   }
 }
@@ -1223,8 +1263,11 @@ void DrawObservations(
         const Vector2f dir = 0.05 * normal;
         DrawLine<float>(
             point + dir, point - dir, 0x7FFF4000, &display_message_);
+        if (kUseWebViz) visualization::DrawLine(
+            point + dir, point - dir, 0x7FFF4000, visualization_msg_);
       }
       DrawPoint(point, point_color, &display_message_);
+      if (kUseWebViz) visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
 }
@@ -1241,6 +1284,7 @@ void DrawGradients(
     const Rotation2Df pose_rotation(poses[j + 2]);
     const Vector2f p2 = pose_location - location_gradient;
     DrawLine(pose_location, p2, 0xFF0000FF, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(pose_location, p2, 0xFF0000FF, visualization_msg_);
   }
 }
 
@@ -1258,6 +1302,7 @@ void DrawPoseCovariance(const Vector2f& pose, const Matrix2f& covariance) {
     const Vector2f v1_global = eigenvectors.transpose() * v1 + pose;
     const Vector2f v2_global = eigenvectors.transpose() * v2 + pose;
     DrawLine(v1_global, v2_global, kPoseCovarianceColor, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(v1_global, v2_global, kPoseCovarianceColor, visualization_msg_);
   }
 }
 
@@ -1273,12 +1318,14 @@ void DrawPoses(const size_t start_pose, const size_t end_pose,
     if (i > start_pose) {
       DrawLine(pose_location, pose_location_last, kTrajectoryColor,
                &display_message_);
+      if (kUseWebViz) visualization::DrawLine(pose_location, pose_location_last, kTrajectoryColor, visualization_msg_);
       const Vector2f odometry =
           Rotation2Df(pose_angle_last) *
           Rotation2Df(-odometry_poses[i - 1].angle) *
           (odometry_poses[i].translation - odometry_poses[i - 1].translation);
       DrawLine(pose_location, Vector2f(pose_location_last + odometry),
                kOdometryColor, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(pose_location, Vector2f(pose_location_last + odometry), kOdometryColor, visualization_msg_);
       if (kDrawCovariances && valid_covariances) {
         DrawPoseCovariance(pose_location, covariances[i]);
       }
@@ -1298,6 +1345,8 @@ void DrawRayCasts(
     for (size_t j = 0; j < ray_cast_lines[i].size(); ++j) {
       DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
                colour, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
+               colour, visualization_msg_);
       /*
       DrawLine(pose_location, ray_cast_lines[i][j].P0(),
                colour, &display_message_);
@@ -1317,6 +1366,7 @@ void DrawFactor(const Vector2f& p0,
   DrawPoint(p1, variable_node_color, &display_message_);
   DrawPoint(Vector2f(0.5 * (p0 + p1)), factor_node_color, &display_message_);
   DrawLine(p0, p1, edge_color, &display_message_);
+  if (kUseWebViz) visualization::DrawLine(p0, p1, edge_color, visualization_msg_);
 }
 
 void DrawFactorGraph(
@@ -1381,7 +1431,7 @@ void CorrespondenceCallback(
   CHECK_EQ(poses.size(), point_clouds.size() * 3);
   CHECK_EQ(point_clouds.size(), ray_cast_lines.size());
   CHECK_EQ(point_clouds.size(), point_line_correspondences.size());
-  ClearDrawingMessage(&display_message_);
+  ClearDisplay();
   if (!run_) {
     localization_.Terminate();
   }
@@ -1410,7 +1460,7 @@ void CorrespondenceCallback(
   if (debug_level_ >= 1) {
     PublishTrace();
   }
-  display_publisher_.publish(display_message_);
+  PublishDisplay();
 }
 
 void SaveLoggedPoses(const string& filename,
@@ -1448,7 +1498,9 @@ void SaveSensorErrors(
   printf("Saving sensor errors... ");
   fflush(stdout);
   ClearDrawingMessage(&display_message_);
-  const Vector2f laser_loc = localization_options_.sensor_offset;
+  const Vector2f laser_loc(
+      localization_options_.sensor_offset.x(),
+      localization_options_.sensor_offset.y());
   for (size_t i = 0; i < poses.size(); ++i) {
     const PointCloudf& point_cloud = point_clouds[i];
     const Vector2f pose_loc_g =
@@ -1473,6 +1525,7 @@ void SaveSensorErrors(
       DrawPoint(expected_point, 0xFFFF0000, &display_message_);
       DrawPoint(observed_point, 0x4FFF7700, &display_message_);
       DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, &display_message_);
+      if (kUseWebViz) visualization::DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, visualization_msg_);
       const float angle = atan2(point_cloud_g[j].y(), point_cloud_g[j].x());
       fprintf(fid(), "%.4f %.4f %.4f\n", angle, expected_range, observed_range);
     }
@@ -1589,17 +1642,18 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     printf("LaserScan, t=%f\n", laser_message.header.stamp.toSec());
   }
   PointCloudf point_cloud;
+  const Vector2f sensor_offset(
+      localization_options_.sensor_offset.x(),
+      localization_options_.sensor_offset.y());
   for (size_t i = 0; i < laser_message.ranges.size(); ++i) {
     if (laser_message.ranges[i] < kMinPointCloudRange ||
         laser_message.ranges[i] > kMaxPointCloudRange ||
         !std::isfinite(laser_message.ranges[i])) continue;
     const float angle = laser_message.angle_min +
         laser_message.angle_increment * static_cast<float>(i);
-    if (angle < laser_message.angle_min + DegToRad(15.0) ||
-        angle > laser_message.angle_max - DegToRad(15.0)) continue;
     float range = laser_message.ranges[i];
-    point_cloud.push_back(localization_options_.sensor_offset +
-        Rotation2Df(angle) * Vector2f(range, 0.0));
+    point_cloud.push_back(
+        sensor_offset + Rotation2Df(angle) * Vector2f(range, 0.0));
   }
   NormalCloudf normal_cloud;
   GenerateNormals(kMaxNormalPointDistance,
@@ -1613,6 +1667,53 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
   last_laser_scan_ = laser_message;
 }
 
+
+void PointcloudCallback(
+    const pcl::PointCloud<pcl::PointXYZ>& cloud) {
+  static const int kNumRays = 360;
+  static const float kAngleIncrement = M_2PI / float(kNumRays);
+  static const float kMaxRange = 150;
+  static const float kMaxSqTanAngle = Sq(tan(DegToRad(5.0f)));
+  PointCloudf cloud2d;
+  cloud2d.resize(kNumRays);
+  for (size_t i = 0; i < cloud2d.size(); ++i) {
+    const float a = -M_PI + kAngleIncrement * float(i);
+    cloud2d[i] = Vector2f(kMaxRange * cos(a), kMaxRange * sin(a));
+  }
+  for (const pcl::PointXYZ& p : cloud.points) {
+    const Vector3f v3 = Vector3f(p.x, p.y, p.z) + localization_options_.sensor_offset;
+    const Vector2f v2(v3.x(), v3.y());
+    // if (v3.z() / v2.squaredNorm() > kMaxSqTanAngle) {
+    if (v3.z() > 0.7 && Sq(v3.z()) / v2.squaredNorm() > kMaxSqTanAngle) {
+      const float angle = atan2(v2.y(), v2.x());
+      const int i = floor((angle + M_PI) / kAngleIncrement);
+      if (cloud2d[i].squaredNorm() > v2.squaredNorm()) {
+        cloud2d[i] = v2;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < cloud2d.size(); ++i) {
+    if (cloud2d[i].squaredNorm() >= Sq(localization_options_.kMaxRange)) {
+      cloud2d.erase(cloud2d.begin() + i);
+      --i;
+    }
+  }
+  static vector<float> normal_weights_;
+  if (normal_weights_.size() == 0) {
+    static const float stddev = 3;
+    for (int i = 0; i < 3; ++i) {
+      normal_weights_.push_back(exp(-Sq(float(i) / stddev)));
+    }
+  }
+  NormalCloudf normal_cloud;
+  GenerateNormals(kMaxNormalPointDistance,
+      normal_weights_, &cloud2d, &normal_cloud);
+  if (cloud2d.size() > 1) {
+    localization_.SensorUpdate(cloud2d, normal_cloud);
+  }
+}
+
 void SaveOrebroLoggedPoses(const vector<Pose2Df>& logged_poses,
                      const vector<int>& logged_episode_lengths,
                      const vector<vector<float> >& laser_scans,
@@ -1624,6 +1725,7 @@ void SaveOrebroLoggedPoses(const vector<Pose2Df>& logged_poses,
   for (size_t i = 1; i < logged_poses.size(); ++i) {
     DrawLine(logged_poses[i - 1].translation, logged_poses[i].translation,
              kLoggedPosesColor, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(logged_poses[i - 1].translation, logged_poses[i].translation, kLoggedPosesColor, visualization_msg_);
   }
   PublishDisplay();
 
@@ -1758,11 +1860,13 @@ void SRLVisualize(
         (static_cast<uint32_t>(255.0 * alpha) << 24) & 0xFF000000;
     DrawPoint(line_p0, alpha_channel | 0xFF0000, &display_message_);
     DrawLine(line_p0, line_p1, alpha_channel | 0x3F3F3F, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(line_p0, line_p1, alpha_channel | 0x3F3F3F, visualization_msg_);
     if (pose_weights[i] == max_weight) {
       for (size_t j = 0; j < point_cloud_e.size(); ++j) {
         const Vector2f point = pose_transform * point_cloud_e[j];
         DrawPoint(point, 0xFFFF7700, &display_message_);
         DrawLine(point, line_p0, 0x1FFF7700, &display_message_);
+        if (kUseWebViz) visualization::DrawLine(point, line_p0, 0x1FFF7700, visualization_msg_);
       }
     }
   }
@@ -1776,27 +1880,28 @@ void SRLVisualize(
     const float offset = p.dot(constraint.line_normal) + constraint.line_offset;
     const Vector2f p_line = p - constraint.line_normal * offset;
     DrawLine(p, p_line, 0xFF00FF00, &display_message_);
+    if (kUseWebViz) visualization::DrawLine(p, p_line, 0xFF00FF00, visualization_msg_);
   }
   PublishDisplay();
 }
 
 void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
   printf("SRL with laser t=%f\n", laser_message.header.stamp.toSec());
-  PointCloudf point_cloud_e;
-  vector<Vector2f> point_cloud_g;
+  PointCloudf point_cloud;
+  const Vector2f sensor_offset(
+      localization_options_.sensor_offset.x(),
+      localization_options_.sensor_offset.y());
   for (size_t i = 0; i < laser_message.ranges.size(); ++i) {
     if (laser_message.ranges[i] < kMinPointCloudRange ||
         laser_message.ranges[i] > kMaxPointCloudRange ||
         !std::isfinite(laser_message.ranges[i])) continue;
     const float angle = laser_message.angle_min +
         laser_message.angle_increment * static_cast<float>(i);
-    point_cloud_e.push_back(localization_options_.sensor_offset +
+    point_cloud.push_back(sensor_offset +
         Rotation2Df(angle) * Vector2f(laser_message.ranges[i], 0.0));
-    point_cloud_g.push_back(
-        Vector2f(point_cloud_e.back().x(), point_cloud_e.back().y()));
   }
   NormalCloudf normal_cloud;
-  GenerateNormals(kMaxNormalPointDistance, &point_cloud_e, &normal_cloud);
+  GenerateNormals(kMaxNormalPointDistance, &point_cloud, &normal_cloud);
 
   vector<Pose2Df> poses;
   vector<double> pose_weights;
@@ -1808,7 +1913,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
   printf("Running SRL...");
   fflush(stdout);
   localization_.SensorResettingResample(
-      point_cloud_g, normal_cloud, kNumSamples, kRadialStdDev,
+      point_cloud, normal_cloud, kNumSamples, kRadialStdDev,
       kTangentialStdDev, kAngularStdDev, &SRLVisualize, &poses, &pose_weights,
       &constraints);
   printf(" Done.\n");
@@ -1826,7 +1931,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
     pose_array[3 * i + 1] = poses[i].translation.y();
     pose_array[3 * i + 2] = poses[i].angle;
   }
-  SRLVisualize(pose_array, point_cloud_e, normal_cloud, constraints);
+  SRLVisualize(pose_array, point_cloud, normal_cloud, constraints);
 }
 
 void InteractivePause() {
@@ -1874,8 +1979,9 @@ void PlayBagFile(const string& bag_file,
 
   const std::vector<std::string> topics({
     CONFIG_scan_topic,
+    CONFIG_pcl_topic,
     CONFIG_odom_topic,
-    CONFIG_initialpose_topic
+    CONFIG_initialpose_topic,
   });
 
   rosbag::View view(bag, rosbag::TopicQuery(topics));
@@ -1959,6 +2065,24 @@ void PlayBagFile(const string& bag_file,
       }
     }
 
+    // Check to see if this is a laser scan message.
+    {
+      // pcl::PointCloud<pcl::PointXYZ>::ConstPtr pcl_message =
+      //     message.instantiate<pcl::PointCloud<pcl::PointXYZ>>();
+      sensor_msgs::PointCloud2Ptr ros_pcl_message =
+          message.instantiate<sensor_msgs::PointCloud2>();
+      if (ros_pcl_message != NULL &&
+          message.getTopic() == CONFIG_pcl_topic) {
+        pcl::PointCloud<pcl::PointXYZ> pcl_message;
+        pcl::fromROSMsg(*ros_pcl_message, pcl_message);
+        PointcloudCallback(pcl_message);
+        while(localization_.RunningSolver()) {
+          Sleep(0.01);
+        }
+        continue;
+      }
+    }
+
     // Check to see if this is a standardized odometry message.
     {
       nav_msgs::OdometryPtr odometry_message =
@@ -2036,8 +2160,8 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
 
-  ClearDrawingMessage(&display_message_);
-  display_publisher_.publish(display_message_);
+  ClearDisplay();
+  PublishDisplay();
 
   while (run_ && ros::ok()) {
     Sleep(0.02);
@@ -2160,7 +2284,13 @@ int main(int argc, char** argv) {
       "Cobot/VectorLocalization/Gui",1,true);
   localization_publisher_ =
       ros_node.advertise<enml::LocalizationMsg>(
-      "Cobot/Localization", 1, true);
+      "Enml/Localization", 1, true);
+  if (kUseWebViz) {
+    visualization_publisher_ = 
+        ros_node.advertise<enml::VisualizationMsg>(
+        "visualization", 1, true);
+    visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
+  }
 
   if (bag_file != NULL) {
     if (batch_mode) {

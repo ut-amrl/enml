@@ -31,6 +31,8 @@ SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 FIND_PACKAGE(Lua51 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 FIND_PACKAGE(Ceres REQUIRED)
+FIND_PACKAGE(PCL REQUIRED)
+
 
 INCLUDE_DIRECTORIES(src/shared)
 ADD_SUBDIRECTORY(src/shared)
@@ -41,6 +43,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/config-reader/include)
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${PCL_INCLUDE_DIRS})
 
 SET(libs roslib roscpp ncurses popt pthread glut boost_system
     ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
@@ -52,14 +55,19 @@ SET(GUI_SRCS
   src/gui/gltext.cpp
 )
 
-ROSBUILD_ADD_EXECUTABLE(enml
-    src/non_markov_localization_main.cpp
-    src/non_markov_localization.cpp
+ADD_LIBRARY(enml_support_lib
     src/kdtree.cpp
     src/gui_publisher_helper.cpp
     src/perception_2d.cpp
-    src/vector_map/vector_map.cc)
+    src/vector_map/vector_map.cc
+    src/visualization/visualization.cc
+    src/visualization/gui_helpers.cc)
+TARGET_LINK_LIBRARIES(enml_support_lib ceres ${PCL_LIBRARIES} ${libs})
+
+ROSBUILD_ADD_EXECUTABLE(enml
+    src/non_markov_localization_main.cpp
+    src/non_markov_localization.cpp)
 ADD_DEPENDENCIES(enml
     rosbuild_precompile
     ceres)
-TARGET_LINK_LIBRARIES(enml ceres ${libs})
+TARGET_LINK_LIBRARIES(enml enml_support_lib)

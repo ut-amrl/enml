@@ -13,7 +13,7 @@ enml = {
   min_point_cloud_range = 0.02;
   max_point_cloud_range = 7.9;
   max_normal_point_distance = 0.1;
-  robot_laser_offset = vec2(0.15, 0.0);
+  robot_sensor_offset = vec3(0.15, 0.0, 0.25);
   num_skip_readings = 1;
 
   -- Odometry parameters.
@@ -72,24 +72,27 @@ enml = {
   max_repeat_iterations = 4;
   return_jacobian = false;
   num_threads = 8;
+  limit_history = false;
 };
 
 if RobotConfig.name=="ut-jackal" then
+  -- enml.map_name = "EmptyMap";
   enml.map_name = "Joydeepb-Driveway";
-  enml.starting_loc_x = 0;
+  enml.starting_loc_x = 1;
   enml.starting_loc_y = 0;
-  enml.starting_angle = deg2rad(0.0);
+  -- enml.starting_angle = deg2rad(25.0);
+  enml.starting_angle = deg2rad(5);
 
   -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(0.5);
-  enml.min_translation = 0.75;
+  enml.min_rotation = deg2rad(2.0);
+  enml.min_translation = 0.05;
 
   -- VLP16 Sensor parameters.
   enml.laser_std_dev = 0.01;
   enml.min_point_cloud_range = 0.02;
   enml.max_point_cloud_range = 100;
   enml.max_normal_point_distance = 0.5;
-  enml.robot_laser_offset = vec2(0.5, 0.0);
+  enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
   enml.num_skip_readings = 1;
 
   -- Parameters for STF constraints.
@@ -110,12 +113,13 @@ if RobotConfig.name=="ut-jackal" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 20;
-  enml.max_solver_iterations = 20;
+  enml.max_history = 4;
+  enml.max_solver_iterations = 10;
   enml.num_repeat_iterations = 1;
-  enml.max_repeat_iterations = 2;
+  enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
   enml.num_threads = 12;
+  enml.limit_history = false;
 end
 
 if RobotConfig.name=="ut-automata" then
@@ -129,7 +133,7 @@ if RobotConfig.name=="ut-automata" then
   enml.min_point_cloud_range = 0.02;
   enml.max_point_cloud_range = 9.9;
   enml.max_normal_point_distance = 0.05;
-  enml.robot_laser_offset = vec2(0.22, 0.0);
+  enml.robot_sensor_offset = vec3(0.22, 0.0, 0.15);
   enml.num_skip_readings = 4;
 
   -- -- Odometry parameters.
@@ -175,7 +179,7 @@ if RobotConfig.name=="Cobot3" then
   enml.min_translation = 0.1;
 
   -- Sensor parameters.
-  enml.robot_laser_offset = vec2(0.14, 0.0);
+  enml.robot_sensor_offset = vec3(0.14, 0.0, 0.25);
   enml.laser_std_dev = 0.05;
   enml.min_point_cloud_range = 0.02;
   enml.max_point_cloud_range = 4.0;
@@ -210,7 +214,7 @@ if RobotConfig.name=="Cobot4" then
   enml.min_translation = 0.1;
 
   -- Sensor parameters.
-  enml.robot_laser_offset = vec2(0.165, 0.0);
+  enml.robot_sensor_offset = vec3(0.165, 0.0, 0.25);
   enml.laser_std_dev = 0.10;
   enml.min_point_cloud_range = 0.02;
   enml.max_point_cloud_range = 12.0;
@@ -279,7 +283,7 @@ if enml_domain == "freiburg" then
   enml.min_point_cloud_range = 0.1;
   enml.max_point_cloud_range = 70.0;
   enml.max_normal_point_distance = 0.5;
-  enml.robot_laser_offset = vec2(0.0, 0.0);
+  enml.robot_sensor_offset = vec3(0.0, 0.0, 0.0);
 
 
   -- Parameters for LTF constraints.
@@ -350,7 +354,7 @@ if enml_domain == "freiburg" then
 elseif enml_domain == "orebro" then
   -- datasets/orebro/logs/*.bag
   enml.starting_location = vec2(0.0, 0.0);
-  enml.starting_angle = deg2rad(-5.0);
+  enml.starting_angle = deg2rad(0.0);
   enml.map_name = "orebro";
 
 
@@ -389,7 +393,7 @@ elseif enml_domain == "orebro" then
   enml.min_point_cloud_range = 0.1;
   enml.max_point_cloud_range = 40.0;
   enml.max_normal_point_distance = 0.2;
-  enml.robot_laser_offset = vec2(0.0, 0.0);
+  enml.robot_sensor_offset = vec3(0.0, 0.0, 0.0);
 
   -- MLE Optimization parameters.
   enml.pose_increment = 10;

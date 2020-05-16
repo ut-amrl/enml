@@ -11,7 +11,7 @@ all: build build/CMakeLists.txt.copy
 clean:
 	rm -rf build bin lib msg_gen src/enml
 
-build/CMakeLists.txt.copy: build CMakeLists.txt Makefile
+build/CMakeLists.txt.copy: build CMakeLists.txt Makefile msg
 	cd build && cmake -DCMAKE_BUILD_TYPE=$(build_type) ..
 	cp CMakeLists.txt build/CMakeLists.txt.copy
 
