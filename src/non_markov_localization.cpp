@@ -84,6 +84,32 @@ typedef Eigen::Translation<float, 2> Translation2Df;
 
 namespace {
 
+struct EnmlTiming {
+  double find_ltfs;
+  double find_stfs;
+  double add_constraints;
+  double solver;
+  int ceres_iterations;
+  int enml_iterations;
+  EnmlTiming() :
+      find_ltfs(0),
+      find_stfs(0),
+      add_constraints(0),
+      solver(0),
+      ceres_iterations(0),
+      enml_iterations(0) {}
+  ~EnmlTiming() {
+    printf("ENML Iters:%3d Ceres Iters: %3d"
+           " LTFs:%6.3f STFs:%6.3f Constraints:%6.3f Solver:%6.3f\n",
+           enml_iterations,
+           ceres_iterations,
+           find_ltfs,
+           find_stfs,
+           add_constraints,
+           solver);
+  }
+};
+
 static const bool kUseRelativeConstraints = false;
 static const size_t kDynamicDiffStride = 4;
 
@@ -996,240 +1022,6 @@ void NonMarkovLocalization::ResetGlobalPoses(
   }
 }
 
-bool NonMarkovLocalization::BatchLocalize(
-    const LocalizationOptions& localization_options,
-    const string& map_name,
-    const vector<PointCloudf>& point_clouds,
-    const vector<NormalCloudf>& normal_clouds,
-    const bool debug,
-    const bool return_initial_poses,
-    vector<Pose2Df>* poses,
-    vector<vector<ObservationType> >* classifications) {
-  static const bool kDebugConvergence = true;
-  ScopedFile fid(NULL);
-  if (kDebugConvergence) fid.Open("results/enml_convergence_steps.txt", "w");
-  CHECK_EQ(poses->size(), point_clouds.size());
-  vector_map_.Load(GetMapFileFromName(map_name));
-  map_name_ = map_name;
-  localization_options_ = localization_options;
-
-  point_clouds_ = point_clouds;
-  // Make a copy of the point clouds in Vector2f format for ray casting
-  // with VectorMap.
-  normal_clouds_ = normal_clouds;
-
-  // Build KD Trees for every pose.
-  BuildKDTrees(point_clouds_, normal_clouds);
-
-  // Make a mutable copy of the poses for opimization.
-  pose_array_.resize(poses->size() * 3);
-  for (size_t i = 0; i < poses->size(); ++i) {
-    const int j = 3 * i;
-    pose_array_[j + 0] = (*poses)[i].translation.x();
-    pose_array_[j + 1] = (*poses)[i].translation.y();
-    pose_array_[j + 2] = (*poses)[i].angle;
-  }
-  if (return_initial_poses) {
-    printf("WARNING: Returning initial pose estimates!\n");
-  }
-  ceres::Solver::Options solver_options;
-  SetSolverOptions(localization_options_, &solver_options);
-  const size_t kPoseIncrement = localization_options_.kPoseIncrement;
-  int succesful_iterations = 0;
-  int num_iterations = 0;
-
-  vector<bool> pose_calculated(poses->size(), false);
-  vector<Pose2Df> initial_poses(poses->begin(), poses->end());
-  size_t max_poses = min(kPoseIncrement, point_clouds_.size() - 1);
-  size_t min_poses = max(0, static_cast<int>(max_poses) -
-      localization_options_.kMaxHistory);
-  for (int i = 0; !terminate_; ++i) {
-    if (debug) {
-      printf("Batch localization iteration %5d, poses %5lu:%5lu\n",
-             i, min_poses, max_poses);
-      printf("Finding correspondences\n");
-    } else {
-      printf("\rBatch localization iteration %d, poses %lu:%lu of %lu",
-             i, min_poses, max_poses, point_clouds_.size());
-      fflush(stdout);
-    }
-    ResetObservationClasses(min_poses, max_poses);
-    FindLTFCorrespondences(min_poses, max_poses);
-    FindSTFCorrespondences(min_poses, max_poses);
-    // FindVisualOdometryCorrespondences(min_poses, max_poses);
-    ceres::Problem problem;
-    AddLTFConstraints(min_poses, max_poses, &problem);
-    if (localization_options_.use_STF_constraints) {
-      AddSTFConstraints(&problem);
-    }
-    AddPoseConstraints(min_poses, max_poses, *poses, &problem);
-    if (localization_options_.use_visibility_constraints) {
-      AddVisibilityConstraints(min_poses, max_poses, &problem);
-    }
-    ceres::Solver::Summary summary;
-    // The first pose should be constant since it's a "given" for the current
-    // non-Markov episode.
-    if (true) {
-      problem.SetParameterBlockConstant(&(pose_array_[3*min_poses]));
-    }
-    ceres::Solve(solver_options, &problem, &summary);
-    ++num_iterations;
-    vector<double> gradients;
-    vector<Matrix2f> covariances;
-    if (localization_options_.CorrespondenceCallback != NULL) {
-      localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
-          point_line_correspondences_, point_point_glob_correspondences_,
-          observation_classes_, visibility_constraints_,
-          gradients, covariances, *poses, min_poses, max_poses);
-    }
-    if (summary.termination_type == ceres::FAILURE ||
-        summary.termination_type == ceres::USER_FAILURE) {
-      std::cout << "\nCeres failure\n" << summary.FullReport();
-      // Sleep(2.0);
-    }
-    if (false) {
-      ceres::Covariance::Options covariance_options;
-      covariance_options.algorithm_type = ceres::SPARSE_QR;
-      ceres::Covariance covariance(covariance_options);
-      vector<pair<const double*, const double*> > covariance_blocks;
-      for (size_t i = min_poses + 1; i <= max_poses; ++i) {
-        covariance_blocks.push_back(make_pair(
-            &pose_array_[3 * i], &pose_array_[3 * i]));
-      }
-      covariance.Compute(covariance_blocks, &problem);
-    }
-    if (kDebugConvergence) {
-      string termination_type("");
-      switch(summary.termination_type) {
-        case ceres::CONVERGENCE: {
-          termination_type = "CONVERGENCE";
-          break;
-        }
-        case ceres::NO_CONVERGENCE: {
-          termination_type = "NO_CONVERGENCE";
-          break;
-        }
-        case ceres::FAILURE: {
-          termination_type = "FAILURE";
-          break;
-        }
-        case ceres::USER_FAILURE: {
-          termination_type = "USER_FAILURE";
-          break;
-        }
-        case ceres::USER_SUCCESS: {
-          termination_type = "USER_SUCCESS";
-          break;
-        }
-        default: {
-          termination_type = "UNKNOWN";
-        }
-      }
-      if (fid()) {
-        fprintf(fid, "%5d %5d %5d %5d %5d %s\n",
-                i,
-                static_cast<int>(min_poses),
-                static_cast<int>(max_poses),
-                summary.num_successful_steps,
-                summary.num_unsuccessful_steps,
-                termination_type.c_str());
-      }
-    }
-    if (summary.num_successful_steps < 1 &&
-        summary.termination_type == ceres::CONVERGENCE) {
-      // The initial state of the solver was already within convergence
-      // tolerance.
-      ++succesful_iterations;
-      if (succesful_iterations > localization_options_.kNumRepeatIterations) {
-        succesful_iterations = 0;
-        num_iterations = 0;
-        ResetGlobalPoses(max_poses,
-                         min(max_poses + kPoseIncrement + kPoseIncrement / 2,
-                            poses->size() - 1),
-                         *poses);
-        // if (max_poses + kPoseIncrement > point_clouds_.size() - 1) break;
-        if (return_initial_poses) {
-          for (size_t i = min_poses; i <= max_poses; ++i) {
-            const int j = 3 * i;
-            if (!pose_calculated[i]) {
-              initial_poses[i].translation.x() = pose_array_[j + 0];
-              initial_poses[i].translation.y() = pose_array_[j + 1];
-              initial_poses[i].angle = AngleMod(pose_array_[j + 2]);
-              pose_calculated[i] = true;
-            }
-          }
-        }
-        if (max_poses == point_clouds_.size() - 1) break;
-        max_poses = min(
-            static_cast<unsigned int>(max_poses + kPoseIncrement),
-            static_cast<unsigned int>(point_clouds_.size() - 1));
-        min_poses = max(0, static_cast<int>(max_poses) -
-            localization_options_.kMaxHistory);
-      }
-    }
-    if (num_iterations > localization_options_.kMaxRepeatIterations) {
-      if (localization_options_.CorrespondenceCallback != NULL) {
-        localization_options_.CorrespondenceCallback(
-            pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
-            point_line_correspondences_, point_point_glob_correspondences_,
-            observation_classes_, visibility_constraints_,
-            gradients, covariances, *poses, min_poses, max_poses);
-      }
-      succesful_iterations = 0;
-      num_iterations = 0;
-      if (return_initial_poses) {
-        for (size_t i = min_poses; i <= max_poses; ++i) {
-          const int j = 3 * i;
-          if (!pose_calculated[i]) {
-            initial_poses[i].translation.x() = pose_array_[j + 0];
-            initial_poses[i].translation.y() = pose_array_[j + 1];
-            initial_poses[i].angle = AngleMod(pose_array_[j + 2]);
-            pose_calculated[i] = true;
-          }
-        }
-      }
-      ResetGlobalPoses(max_poses,
-                       min(max_poses + kPoseIncrement + kPoseIncrement / 2,
-                           poses->size() - 1),
-                       *poses);
-      // if (max_poses + kPoseIncrement > point_clouds_.size() - 1) break;
-      if (max_poses == point_clouds_.size() - 1) break;
-      max_poses = min(
-        static_cast<unsigned int>(max_poses + kPoseIncrement),
-                      static_cast<unsigned int>(point_clouds_.size() - 1));
-      min_poses = max(0, static_cast<int>(max_poses) -
-          localization_options_.kMaxHistory);
-    }
-    // std::cout << summary.FullReport();
-    if (debug) {
-      printf("\n%s\n", summary.BriefReport().c_str());
-    }
-    // TODO(joydeepb): Return covariance matrix of final pose.
-  }
-
-  if (debug) {
-    printf("Optimized %d poses.\n", static_cast<int>(point_clouds_.size()));
-  } else {
-    // To clear the cursor of the line used to display progress.
-    printf("\n");
-  }
-  // Copy over the optimized poses.
-  if (return_initial_poses) {
-    *poses = initial_poses;
-  } else {
-    for (size_t i = 0; i < poses->size(); ++i) {
-      const int j = 3 * i;
-      (*poses)[i].translation.x() = pose_array_[j + 0];
-      (*poses)[i].translation.y() = pose_array_[j + 1];
-      (*poses)[i].angle = AngleMod(pose_array_[j + 2]);
-    }
-  }
-  pose_array_.clear();
-  *classifications = observation_classes_;
-  return true;
-}
-
 void NonMarkovLocalization::ComputeLostMetric() {
   size_t num_visibility_constraints = 0;
   vector<double> residuals(visibility_constraints_.size());
@@ -1268,6 +1060,7 @@ float NonMarkovLocalization::GetLostMetric() const {
 void NonMarkovLocalization::Update() {
   // FunctionTimer ft(__FUNCTION__);
   static const bool debug = false;
+  EnmlTiming timing;
   // Accepts:
   //  1. Non-Markov Localization paramters.
   //  2. Vector map.
@@ -1278,6 +1071,8 @@ void NonMarkovLocalization::Update() {
   ceres::Solver::Options solver_options;
   SetSolverOptions(localization_options_, &solver_options);
 
+  vector<double> gradients;
+  vector<Matrix2f> covariances;
   int repeat_iterations = 0;
   size_t min_poses = 0;
   const size_t max_poses = point_clouds_.size() - 1;
@@ -1293,6 +1088,7 @@ void NonMarkovLocalization::Update() {
   bool converged = false;
   for (int i = 0; !converged && i < localization_options_.kMaxRepeatIterations;
        ++i) {
+    timing.enml_iterations++;
     ceres::Problem problem;
     if (localization_options_.limit_history) {
       static const int kOpenPoses = 40;
@@ -1309,9 +1105,14 @@ void NonMarkovLocalization::Update() {
       printf("Localization update iteration %5d, poses %5lu:%5lu\n",
              i, min_poses, max_poses);
     }
+    const double t0 = GetMonotonicTime();
     ResetObservationClasses(min_poses, max_poses);
     FindLTFCorrespondences(min_poses, max_poses);
+    const double t1 = GetMonotonicTime();
+    timing.find_ltfs += (t1 - t0);
     FindSTFCorrespondences(min_poses, max_poses);
+    const double t2 = GetMonotonicTime();
+    timing.find_stfs += (t2 - t1);
     if (kUseRelativeConstraints) {
       RecomputeRelativePoses();
     }
@@ -1340,8 +1141,16 @@ void NonMarkovLocalization::Update() {
     } else {
       problem.SetParameterBlockConstant(&(pose_array_[0]));
     }
+    const double t3 = GetMonotonicTime();
     ceres::Solve(solver_options, &problem, &summary);
+    const double t4 = GetMonotonicTime();
+    timing.add_constraints += (t3 - t2);
+    timing.solver += (t4 - t3);
+    timing.ceres_iterations +=
+        summary.num_successful_steps + summary.num_unsuccessful_steps;
+    // timing.ceres_iterations += summary.iterations.size();
     // std::cout << summary.FullReport();
+    // std::cout << summary.BriefReport() << "\n";
     if (kUseRelativeConstraints) {
       RecomputeAbsolutePoses();
     }
@@ -1351,8 +1160,6 @@ void NonMarkovLocalization::Update() {
         converged = true;
       }
     }
-    vector<double> gradients;
-    vector<Matrix2f> covariances;
     if (false) {
       ceres::CRSMatrix jacobian;
       // Evaluate Jacobians
@@ -1397,13 +1204,6 @@ void NonMarkovLocalization::Update() {
         covariances[i](1, 1) = values[4];
       }
     }
-    if (localization_options_.CorrespondenceCallback != NULL) {
-      localization_options_.CorrespondenceCallback(
-          pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
-          point_line_correspondences_, point_point_glob_correspondences_,
-          observation_classes_, visibility_constraints_,
-          gradients, covariances, poses_, min_poses, max_poses);
-    }
     if (summary.termination_type == ceres::FAILURE ||
         summary.termination_type == ceres::USER_FAILURE) {
       std::cout << "\nEnML Ceres failure, report follows:\n"
@@ -1413,6 +1213,13 @@ void NonMarkovLocalization::Update() {
       // This is the final iteration of the EnML solver.
       ComputeLostMetric();
     }
+  }
+  if (localization_options_.CorrespondenceCallback != NULL) {
+    localization_options_.CorrespondenceCallback(
+        pose_array_, point_clouds_, normal_clouds_, ray_cast_lines_,
+        point_line_correspondences_, point_point_glob_correspondences_,
+        observation_classes_, visibility_constraints_,
+        gradients, covariances, poses_, min_poses, max_poses);
   }
   // Copy over the optimized poses.
   for (size_t i = 0; i < poses_.size(); ++i) {

@@ -1113,10 +1113,8 @@ struct PoseConstraint {
     residuals[1] =  translation.y() / T(tangential_std_dev);
     //T rotation_error = (pose2[2] - pose1[2] - T(rotation));
 
-    const T angular_error =
-        AngleMod(pose2[2] - pose1[2] - T(rotation));
-    residuals[2] = angular_error / T(angular_std_dev);
-
+    const T angular_error = pose2[2] - pose1[2] - T(rotation);
+    residuals[2] = atan2(sin(angular_error), cos(angular_error)) / T(angular_std_dev);
     return true;
   }
 

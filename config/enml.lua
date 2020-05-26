@@ -85,7 +85,7 @@ if RobotConfig.name=="ut-jackal" then
 
   -- -- Odometry parameters.
   enml.min_rotation = deg2rad(2.0);
-  enml.min_translation = 0.05;
+  enml.min_translation = 0.25;
 
   -- VLP16 Sensor parameters.
   enml.laser_std_dev = 0.01;
@@ -95,17 +95,30 @@ if RobotConfig.name=="ut-jackal" then
   enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
   enml.num_skip_readings = 1;
 
+  -- Parameters for Odometry constraints.
+  enml.max_update_period = 0.5;
+  enml.odometry_radial_stddev_rate = 0.1;
+  enml.odometry_tangential_stddev_rate = 0.1;
+  enml.odometry_angular_stddev_rate = 0.3;
+  enml.odometry_translation_min_stddev = 0.001;
+  enml.odometry_translation_max_stddev = 10.5;
+  enml.odometry_rotation_min_stddev = deg2rad(1.0);
+  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
+  enml.radial_translation_uncertainty = 0.01;
+  enml.tangential_translation_uncertainty = 0.01;
+  enml.angle_uncertainty = 0.05;
+
   -- Parameters for STF constraints.
-  enml.point_match_threshold = 0.35;
+  enml.point_match_threshold = 0.25;
   enml.max_stf_angle_error = deg2rad(35.0);
   enml.max_correspondences_per_point = 10;
   enml.point_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for LTF constraints.
-  enml.map_huber_loss = 0.6;
-  enml.max_point_to_line_distance = 0.35;
+  enml.map_huber_loss = 0.1;
+  enml.max_point_to_line_distance = 0.3;
   enml.max_angle_error = deg2rad(35.0);
-  enml.map_correlation_factor = 1.0 / 10.0;
+  enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.
   enml.use_visibility_constraints = false;
@@ -113,16 +126,21 @@ if RobotConfig.name=="ut-jackal" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 4;
-  enml.max_solver_iterations = 10;
+  enml.max_history = 2;
+  enml.max_solver_iterations = 30;
   enml.num_repeat_iterations = 1;
   enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
   enml.num_threads = 12;
-  enml.limit_history = false;
+  enml.limit_history = true;
 end
 
 if RobotConfig.name=="ut-automata" then
+  -- enml.map_name = "Joydeepb-Home";
+  -- -- enml.map_name = "EmptyMap";
+  -- enml.starting_loc_x = 0;
+  -- enml.starting_loc_y = 0;
+  -- enml.starting_angle = deg2rad(-33.0);
   enml.map_name = "GDC3";
   enml.starting_loc_x = 14.8;
   enml.starting_loc_y = 14.4;
@@ -137,20 +155,20 @@ if RobotConfig.name=="ut-automata" then
   enml.num_skip_readings = 4;
 
   -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(2);
-  enml.min_translation = 0.1;
+  enml.min_rotation = deg2rad(10);
+  enml.min_translation = 0.4;
 
   -- Parameters for STF constraints.
-  enml.point_match_threshold = 0.05;
-  enml.max_stf_angle_error = deg2rad(85.0);
+  enml.point_match_threshold = 0.15;
+  enml.max_stf_angle_error = deg2rad(35.0);
   enml.max_correspondences_per_point = 6;
   enml.point_correlation_factor = 1.0 / 10.0;
 
   -- Parameters for LTF constraints.
-  enml.map_huber_loss = 0.3;
+  enml.map_huber_loss = 0.1;
   enml.max_point_to_line_distance = 0.15;
   enml.max_angle_error = deg2rad(35.0);
-  enml.map_correlation_factor = 1.0 / 50.0;
+  enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.
   enml.use_visibility_constraints = true;
@@ -158,12 +176,13 @@ if RobotConfig.name=="ut-automata" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 20;
-  enml.max_solver_iterations = 10;
-  enml.num_repeat_iterations = 1;
-  enml.max_repeat_iterations = 3;
+  enml.max_history = 5;
+  enml.max_solver_iterations = 30;
+  enml.num_repeat_iterations = 2;
+  enml.max_repeat_iterations = 4;
   enml.return_jacobian = false;
   enml.num_threads = 12;
+  enml.limit_history = false;
 end
 
 if RobotConfig.name=="Cobot-Sim" then

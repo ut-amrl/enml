@@ -15,8 +15,7 @@
   <depend package="rosbag"/>
   <depend package="visualization_msgs"/>
   <depend package="tf"/>
-  <depend package="pcl_ros"/>
-  <depend package="pcl_conversions"/>
+  <depend package="amrl_msgs"/>
 </package>
 
 

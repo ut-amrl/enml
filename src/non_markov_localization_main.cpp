@@ -36,7 +36,6 @@
 #include <vector>
 
 #include "nav_msgs/Odometry.h"
-#include "pcl_ros/point_cloud.h"
 #include "ros/ros.h"
 #include "ros/package.h"
 #include "rosbag/bag.h"
@@ -45,8 +44,8 @@
 #include "sensor_msgs/PointCloud2.h"
 
 #include "enml/LidarDisplayMsg.h"
-#include "enml/LocalizationMsg.h"
-#include "enml/VisualizationMsg.h"
+#include "amrl_msgs/Localization2DMsg.h"
+#include "amrl_msgs/VisualizationMsg.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -104,9 +103,6 @@ using namespace math_util;
 typedef KDNodeValue<float, 2> KDNodeValue2f;
 
 namespace {
-// Name of the topic that point cloud data (e.g. from VLP16) is published on.
-CONFIG_STRING(pcl_topic, "RobotConfig.pointcloud_topic");
-
 // Name of the topic that scan data is published on.
 CONFIG_STRING(scan_topic, "RobotConfig.scan_topic");
 
@@ -123,12 +119,12 @@ config_reader::ConfigReader config_reader_({
 });
 
 // ROS message for publishing SE(2) pose with map name.
-enml::LocalizationMsg localization_msg_;
+amrl_msgs::Localization2DMsg localization_msg_;
 
 // ROS message for visualization with WebViz.
-enml::VisualizationMsg visualization_msg_;
+amrl_msgs::VisualizationMsg visualization_msg_;
 
-const bool kUseWebViz = false;
+const bool kUseWebViz = true;
 
 util_random::Random rand_;
 }  // namespace
@@ -278,20 +274,16 @@ void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
   localization_msg_.header.stamp.fromSec(GetWallTime());
   localization_msg_.map = map_name;
-  localization_msg_.x = x;
-  localization_msg_.y = y;
-  localization_msg_.angle = angle;
+  localization_msg_.pose.x = x;
+  localization_msg_.pose.y = y;
+  localization_msg_.pose.theta = angle;
   localization_publisher_.publish(localization_msg_);
 }
 
 void PublishLocation() {
-  Pose2Df latest_pose = localization_.GetLatestPose();
-  localization_msg_.header.stamp.fromSec(GetWallTime());
-  localization_msg_.map = localization_.GetCurrentMapName();
-  localization_msg_.x = latest_pose.translation.x();
-  localization_msg_.y = latest_pose.translation.y();
-  localization_msg_.angle = latest_pose.angle;
-  localization_publisher_.publish(localization_msg_);
+  Pose2Df pose = localization_.GetLatestPose();
+  const string map = localization_.GetCurrentMapName();
+  PublishLocation(map, pose.translation.x(), pose.translation.y(), pose.angle);
 }
 
 void PublishTrace() {
@@ -301,12 +293,11 @@ void PublishTrace() {
   static bool initialized = false;
   const Vector2f curLoc(
         latest_pose.translation.x(), latest_pose.translation.y());
-  if(!initialized){
+  if(!initialized || (curLoc - lastLoc).squaredNorm() > Sq(5.0)){
     trace.clear();
     trace.push_back(curLoc);
     lastLoc = curLoc;
-    if(lastLoc.squaredNorm()>Sq(5.0))
-      initialized = true;
+    initialized = true;
     return;
   }
   if((curLoc-lastLoc).squaredNorm()>Sq(0.05)){
@@ -315,12 +306,11 @@ void PublishTrace() {
   }
 
   for(unsigned int i=0; i<trace.size()-1;i++){
-    if((trace[i]-trace[i+1]).squaredNorm()>1.0)
+    if((trace[i]-trace[i+1]).squaredNorm()>Sq(5.0))
       continue;
     DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, &display_message_);
     if (kUseWebViz) visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);
   }
-  // printf("trace: %d locations\n",int(trace.size()));
 }
 
 void ClearDisplay() {
@@ -991,8 +981,8 @@ bool LoadSetLocationMessage(const rosbag::MessageInstance& message,
                             Vector2f* global_location,
                             float* global_angle,
                             string* map_name) {
-  enml::LocalizationMsgPtr set_location_message =
-      message.instantiate<enml::LocalizationMsg>();
+  amrl_msgs::Localization2DMsgPtr set_location_message =
+      message.instantiate<amrl_msgs::Localization2DMsg>();
   const string topic_name = message.getTopic();
   if (set_location_message != NULL &&
       message.getTopic() == CONFIG_initialpose_topic)  {
@@ -1000,9 +990,9 @@ bool LoadSetLocationMessage(const rosbag::MessageInstance& message,
       printf("Set Location, t:%.2f\n", message.getTime().toSec());
       fflush(stdout);
     }
-    *global_angle = set_location_message->angle;
-    global_location->x() = set_location_message->x;
-    global_location->y() = set_location_message->y;
+    *global_angle = set_location_message->pose.theta;
+    global_location->x() = set_location_message->pose.x;
+    global_location->y() = set_location_message->pose.y;
     *map_name = set_location_message->map;
     return true;
   }
@@ -1097,6 +1087,8 @@ void DrawVisibilityConstraints(
     const vector<vector_localization::VisibilityGlobConstraint*>&
         visibility_constraints,
     const vector<double>& poses) {
+  return;
+  // TODO(Joydeepb): This causes a segfault when "enml.limit_history = true;".
   for (size_t i = 0; i < visibility_constraints.size(); ++i) {
     const vector_localization::VisibilityGlobConstraint& constraint =
         *visibility_constraints[i];
@@ -1534,55 +1526,6 @@ void SaveSensorErrors(
   printf("Done.\n");
 }
 
-void BatchLocalize(const string& bag_file, const string& keyframes_file,
-                   int max_laser_poses, bool use_point_constraints,
-                   double time_skip, bool return_initial_poses) {
-  vector<PointCloudf> point_clouds;
-  vector<NormalCloudf> normal_clouds;
-  vector<Pose2Df> poses;
-  vector<double> timestamps;
-  vector<double> keyframes;
-  vector<vector<NonMarkovLocalization::ObservationType> > classifications;
-
-  localization_options_.use_STF_constraints = use_point_constraints;
-  double bag_duration;
-  printf("Processing %s\n", bag_file.c_str());
-
-  LoadKeyframes(keyframes_file, &keyframes);
-  LoadRosBag(bag_file, max_laser_poses, time_skip, keyframes, &point_clouds,
-             &normal_clouds, &poses, &timestamps, &bag_duration, &kMapName);
-
-  if (debug_level_ > 0) {
-    localization_options_.CorrespondenceCallback = CorrespondenceCallback;
-  }
-  ClearDrawingMessage(&display_message_);
-  DisplayPoses(poses, point_clouds, normal_clouds, classifications);
-  if (debug_level_ > 2) {
-    Sleep(1.0);
-    return;
-  }
-
-  const double t_start = GetMonotonicTime();
-  localization_.BatchLocalize(localization_options_, kMapName, point_clouds,
-                              normal_clouds, (debug_level_ > 1),
-                              return_initial_poses, &poses, &classifications);
-
-  const double process_time = GetMonotonicTime() - t_start;
-  printf("\nDone in %.3fs, bag time %.3fs (%.3fx).\n",
-         process_time, bag_duration, bag_duration / process_time);
-  ClearDrawingMessage(&display_message_);
-  DisplayPoses(poses, point_clouds, normal_clouds, classifications);
-  if (save_ltfs_) {
-    SaveSensorErrors(poses, point_clouds, classifications);
-  }
-  SaveLoggedPoses(string(bag_file) + ".poses", poses, timestamps);
-
-  if (save_stfs_) {
-    SaveStfs(kMapName, poses, point_clouds, normal_clouds, classifications,
-             bag_file, timestamps[0]);
-  }
-}
-
 void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
                               const nav_msgs::Odometry& odometry_msg) {
   const float old_theta = 2.0 * atan2(
@@ -1665,53 +1608,6 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     localization_.SensorUpdate(point_cloud, normal_cloud);
   }
   last_laser_scan_ = laser_message;
-}
-
-
-void PointcloudCallback(
-    const pcl::PointCloud<pcl::PointXYZ>& cloud) {
-  static const int kNumRays = 360;
-  static const float kAngleIncrement = M_2PI / float(kNumRays);
-  static const float kMaxRange = 150;
-  static const float kMaxSqTanAngle = Sq(tan(DegToRad(5.0f)));
-  PointCloudf cloud2d;
-  cloud2d.resize(kNumRays);
-  for (size_t i = 0; i < cloud2d.size(); ++i) {
-    const float a = -M_PI + kAngleIncrement * float(i);
-    cloud2d[i] = Vector2f(kMaxRange * cos(a), kMaxRange * sin(a));
-  }
-  for (const pcl::PointXYZ& p : cloud.points) {
-    const Vector3f v3 = Vector3f(p.x, p.y, p.z) + localization_options_.sensor_offset;
-    const Vector2f v2(v3.x(), v3.y());
-    // if (v3.z() / v2.squaredNorm() > kMaxSqTanAngle) {
-    if (v3.z() > 0.7 && Sq(v3.z()) / v2.squaredNorm() > kMaxSqTanAngle) {
-      const float angle = atan2(v2.y(), v2.x());
-      const int i = floor((angle + M_PI) / kAngleIncrement);
-      if (cloud2d[i].squaredNorm() > v2.squaredNorm()) {
-        cloud2d[i] = v2;
-      }
-    }
-  }
-
-  for (size_t i = 0; i < cloud2d.size(); ++i) {
-    if (cloud2d[i].squaredNorm() >= Sq(localization_options_.kMaxRange)) {
-      cloud2d.erase(cloud2d.begin() + i);
-      --i;
-    }
-  }
-  static vector<float> normal_weights_;
-  if (normal_weights_.size() == 0) {
-    static const float stddev = 3;
-    for (int i = 0; i < 3; ++i) {
-      normal_weights_.push_back(exp(-Sq(float(i) / stddev)));
-    }
-  }
-  NormalCloudf normal_cloud;
-  GenerateNormals(kMaxNormalPointDistance,
-      normal_weights_, &cloud2d, &normal_cloud);
-  if (cloud2d.size() > 1) {
-    localization_.SensorUpdate(cloud2d, normal_cloud);
-  }
 }
 
 void SaveOrebroLoggedPoses(const vector<Pose2Df>& logged_poses,
@@ -1979,7 +1875,6 @@ void PlayBagFile(const string& bag_file,
 
   const std::vector<std::string> topics({
     CONFIG_scan_topic,
-    CONFIG_pcl_topic,
     CONFIG_odom_topic,
     CONFIG_initialpose_topic,
   });
@@ -2065,24 +1960,6 @@ void PlayBagFile(const string& bag_file,
       }
     }
 
-    // Check to see if this is a laser scan message.
-    {
-      // pcl::PointCloud<pcl::PointXYZ>::ConstPtr pcl_message =
-      //     message.instantiate<pcl::PointCloud<pcl::PointXYZ>>();
-      sensor_msgs::PointCloud2Ptr ros_pcl_message =
-          message.instantiate<sensor_msgs::PointCloud2>();
-      if (ros_pcl_message != NULL &&
-          message.getTopic() == CONFIG_pcl_topic) {
-        pcl::PointCloud<pcl::PointXYZ> pcl_message;
-        pcl::fromROSMsg(*ros_pcl_message, pcl_message);
-        PointcloudCallback(pcl_message);
-        while(localization_.RunningSolver()) {
-          Sleep(0.01);
-        }
-        continue;
-      }
-    }
-
     // Check to see if this is a standardized odometry message.
     {
       nav_msgs::OdometryPtr odometry_message =
@@ -2104,7 +1981,7 @@ void PlayBagFile(const string& bag_file,
       string init_map;
       if (LoadSetLocationMessage(message, &init_location, &init_angle,
           &init_map)) {
-        if (!quiet_ && debug_level_ > 0) {
+        if (debug_level_ > 0) {
           printf("Initializing location to %s: %f,%f, %f\u00b0\n",
                  init_map.c_str(), init_location.x(), init_location.y(),
                  DegToRad(init_angle));
@@ -2120,12 +1997,10 @@ void PlayBagFile(const string& bag_file,
   const double bag_duration = bag_time - bag_time_start;
   const vector<Pose2Df> logged_poses = localization_.GetLoggedPoses();
   const vector<int> episode_lengths = localization_.GetLoggedEpisodeLengths();
-  if (!quiet_) {
-    printf("Done in %.3fs, bag time %.3fs (%.3fx).\n",
-          process_time, bag_duration, bag_duration / process_time);
-    printf("%d laser scans, %lu logged poses\n",
-          num_laser_scans, logged_poses.size());
-  }
+  printf("Done in %.3fs, bag time %.3fs (%.3fx).\n",
+        process_time, bag_duration, bag_duration / process_time);
+  printf("%d laser scans, %lu logged poses\n",
+        num_laser_scans, logged_poses.size());
 
   if (statistical_test_index_ >= 0) {
     const string file_name = StringPrintf(
@@ -2219,7 +2094,6 @@ int main(int argc, char** argv) {
   int max_laser_poses = -1;
   bool disable_stfs = false;
   double time_skip = 0;
-  bool batch_mode = false;
   bool unique_node_name = false;
   bool return_initial_poses = false;
 
@@ -2227,8 +2101,6 @@ int main(int argc, char** argv) {
     { "debug" , 'd', POPT_ARG_INT, &debug_level_, 1, "Debug level", "NUM" },
     { "bag-file", 'b', POPT_ARG_STRING, &bag_file, 1, "ROS bagfile to use",
         "STRING"},
-    { "batch-mode", 'B', POPT_ARG_NONE, &batch_mode, 0, "Run in batch mode",
-        "NONE"},
     { "max-poses" , 'n', POPT_ARG_INT, &max_laser_poses, 1,
         "Maximum number of laser poses to optimize", "NUM" },
     { "time-skip", 's', POPT_ARG_DOUBLE, &time_skip, 1,
@@ -2283,24 +2155,18 @@ int main(int argc, char** argv) {
       ros_node.advertise<enml::LidarDisplayMsg>(
       "Cobot/VectorLocalization/Gui",1,true);
   localization_publisher_ =
-      ros_node.advertise<enml::LocalizationMsg>(
+      ros_node.advertise<amrl_msgs::Localization2DMsg>(
       "Enml/Localization", 1, true);
   if (kUseWebViz) {
-    visualization_publisher_ = 
-        ros_node.advertise<enml::VisualizationMsg>(
+    visualization_publisher_ =
+        ros_node.advertise<amrl_msgs::VisualizationMsg>(
         "visualization", 1, true);
     visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
   }
 
   if (bag_file != NULL) {
-    if (batch_mode) {
-      const string keyframes = (keyframes_file == NULL) ? "" : keyframes_file;
-      BatchLocalize(bag_file, keyframes, max_laser_poses,
-                    !disable_stfs, time_skip, return_initial_poses);
-    } else {
-      PlayBagFile(bag_file, max_laser_poses, !disable_stfs,
-                  time_skip, &ros_node, NULL);
-    }
+    PlayBagFile(
+        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL);
   } else {
     OnlineLocalize(!disable_stfs, &ros_node);
   }

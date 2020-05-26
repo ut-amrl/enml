@@ -159,24 +159,11 @@ class NonMarkovLocalization {
   explicit NonMarkovLocalization(const std::string& maps_directory);
   virtual ~NonMarkovLocalization();
 
-  // Notifies concurrently running threads, including the update thread and
-  // BatchLocalize() to terminate.
+  // Notifies concurrently running threads to terminate.
   void Terminate();
 
   // Resets the pose IDs.
   void Reset();
-
-  bool BatchLocalize(const LocalizationOptions& options,
-                     const std::string& map_name,
-                     const std::vector<perception_2d::PointCloudf>&
-                        point_clouds,
-                     const std::vector<perception_2d::NormalCloudf>&
-                        normal_clouds,
-                     const bool debug,
-                     const bool return_initial_poses,
-                     std::vector<perception_2d::Pose2Df>* poses,
-                     std::vector<std::vector<ObservationType> >*
-                        classifications);
 
   // Clears the current list of poses and associated observations.
   void ClearPoses();
