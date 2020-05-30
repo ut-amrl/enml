@@ -2020,6 +2020,13 @@ void PlayBagFile(const string& bag_file,
   }
 }
 
+void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
+  if (debug_level_ > -1) {
+    printf("Initialize %s %f,%f %f\u00b0\n",
+        msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
+  }
+}
+
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   // Subscribe to laser scanner.
   localization_options_.use_STF_constraints = use_point_constraints;
@@ -2034,6 +2041,8 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
       node->subscribe(CONFIG_scan_topic, 1, LaserCallback);
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
+  Subscriber initialize_subscriber = 
+      node->subscribe("/set_pose", 1, InitializeCallback);
 
   ClearDisplay();
   PublishDisplay();
