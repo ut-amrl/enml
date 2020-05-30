@@ -293,11 +293,11 @@ void PublishTrace() {
   static bool initialized = false;
   const Vector2f curLoc(
         latest_pose.translation.x(), latest_pose.translation.y());
-  if(!initialized || (curLoc - lastLoc).squaredNorm() > Sq(5.0)){
-    trace.clear();
+  if (!initialized) {
     trace.push_back(curLoc);
     lastLoc = curLoc;
     initialized = true;
+    printf("Init trace\n");
     return;
   }
   if((curLoc-lastLoc).squaredNorm()>Sq(0.05)){
@@ -305,7 +305,7 @@ void PublishTrace() {
     lastLoc = curLoc;
   }
 
-  for(unsigned int i=0; i<trace.size()-1;i++){
+  for(unsigned int i = 0; i + 1 < trace.size(); i++){
     if((trace[i]-trace[i+1]).squaredNorm()>Sq(5.0))
       continue;
     DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, &display_message_);
@@ -322,7 +322,6 @@ void PublishDisplay() {
   display_publisher_.publish(display_message_);
   ClearDrawingMessage(&display_message_);
   if (kUseWebViz) visualization_publisher_.publish(visualization_msg_);
-  if (kUseWebViz) visualization::ClearVisualizationMsg(visualization_msg_);
 }
 
 int kbhit() {
@@ -596,64 +595,6 @@ void SaveStfs(
   }
 }
 
-void DisplayPoses(const vector<Pose2Df>& poses,
-                  const vector<PointCloudf>& point_clouds,
-                  const vector<NormalCloudf>& normal_clouds,
-                  const vector<vector<NonMarkovLocalization::ObservationType> >&
-                      classifications) {
-  if (debug_level_ < 0) return;
-  static const int kSkipLaserScans = 1;
-  CHECK_EQ(poses.size(), point_clouds.size());
-  CHECK_GT(poses.size(), 0);
-
-  // Check if the observation classifications are valid.
-  bool classifications_valid = (classifications.size() == point_clouds.size());
-  for (size_t i = 0; i + 1 < poses.size(); ++i) {
-    classifications_valid = classifications_valid &&
-        (classifications[i].size() == point_clouds[i].size());
-  }
-
-  ClearDrawingMessage(&display_message_);
-  // Add robot localization trajectory.
-  for (size_t i = 0; i + 1 < poses.size(); ++i) {
-    DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor,
-             &display_message_);
-    if (kUseWebViz) visualization::DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor, visualization_msg_);
-  }
-
-  // Add laser scans.
-  for (size_t i = 0; i < point_clouds.size(); i += kSkipLaserScans) {
-    const PointCloudf& point_cloud = point_clouds[i];
-    const Rotation2Df rotation(poses[i].angle);
-    // const Vector2f& pose_location = poses[i].translation;
-    const Vector2f pose_location = poses[i].translation;
-    for (unsigned int j = 0; j < point_cloud.size(); ++j) {
-      const Vector2f p(rotation * point_cloud[j] + pose_location);
-      uint32_t color = kLtfPointColor;
-      if (classifications_valid) {
-        switch (classifications[i][j]) {
-          case NonMarkovLocalization::kLtfObservation : {
-            color = kLtfPointColor;
-          } break;
-
-          case NonMarkovLocalization::kStfObservation : {
-            color = kStfPointColor;
-          } break;
-
-          case NonMarkovLocalization::kDfObservation : {
-            color = kDfPointColor;
-          } break;
-        }
-      }
-      DrawPoint(p, color, &display_message_);
-      if (kUseWebViz) visualization::DrawPoint(p, color, visualization_msg_);
-      // DrawLine(p, pose_location, 0x3Fc0c0c0, &display_message_);
-      // if (kUseWebViz) visualization::DrawLine(p, pose_location, 0x3Fc0c0c0, visualization_msg_);
-    }
-  }
-  PublishDisplay();
-}
-
 void SaveEpisodeStats(FILE* fid) {
   vector<Pose2Df> poses;
   vector<PointCloudf> point_clouds;
@@ -709,101 +650,6 @@ void SaveEpisodeStats(FILE* fid) {
           num_ltfs,
           num_stfs,
           num_dfs);
-}
-
-void DisplayDebug() {
-  static const bool debug = false;
-  static Pose2Df last_pose_(0, 0, 0);
-  static double t_last = GetMonotonicTime();
-  vector<Pose2Df> poses;
-  vector<uint64_t> pose_ids;
-  vector<PointCloudf> point_clouds;
-  vector<Pose2Df> pending_poses;
-  vector<vector<NonMarkovLocalization::ObservationType> > observation_classes;
-
-  Pose2Df latest_pose;
-  if (!localization_.GetNodeData(
-      &poses,
-      &pose_ids,
-      &point_clouds,
-      &pending_poses,
-      &observation_classes,
-      &latest_pose)) {
-    // Unable to get node data at this time: that's okay, do nothing.
-    if (debug || debug_level_ > 1) {
-      printf("---- nodes, --- pending nodes\n");
-    }
-    return;
-  }
-  // There's probably nothing new to display if the latest pose MLE is unchaged.
-  if (latest_pose.translation == last_pose_.translation) {
-    return;
-  }
-  last_pose_ = latest_pose;
-
-  if (point_clouds.size() != observation_classes.size()) {
-    printf("EnML Error: point_clouds.size() != observation_classes.size(), "
-           "%d vs. %d\n",
-           static_cast<int>(point_clouds.size()),
-           static_cast<int>(observation_classes.size()));
-    return;
-  }
-  if (debug_level_ < 1 && GetMonotonicTime() < t_last + 0.5) {
-    return;
-  }
-  t_last = GetMonotonicTime();
-  const int skip_scans = (debug_level_ < 1) ? 8 : 2;
-  ClearDisplay();
-  if (debug || debug_level_ > 1) {
-    printf("%4lu nodes, %3lu pending nodes\n",
-           poses.size(), pending_poses.size());
-  }
-  // Add robot localization trajectory.
-  for (size_t i = 0; i + 1 < poses.size(); ++i) {
-    DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor,
-             &display_message_);
-    if (kUseWebViz) visualization::DrawLine(poses[i].translation, poses[i + 1].translation, kTrajectoryColor, visualization_msg_);
-  }
-
-  // Add laser scans.
-  for (size_t i = 0; i + 1 < point_clouds.size(); i += skip_scans) {
-    const PointCloudf& point_cloud = point_clouds[i];
-    const Rotation2Df rotation(poses[i].angle);
-    const Vector2f& translation = poses[i].translation;
-    for (unsigned int j = 0; j < point_cloud.size(); ++j) {
-      const Vector2f p(rotation * point_cloud[j] + translation);
-      uint32_t color = kTrajectoryColor;
-      switch (observation_classes[i][j]) {
-        case NonMarkovLocalization::kLtfObservation : {
-          color = kLtfPointColor;
-        } break;
-        case NonMarkovLocalization::kStfObservation : {
-          color = kStfPointColor;
-        } break;
-        case NonMarkovLocalization::kDfObservation : {
-          color = kDfPointColor;
-        } break;
-        default : {
-        } break;
-      }
-      DrawPoint(p, color, &display_message_);
-      if (kUseWebViz) visualization::DrawPoint(p, color, visualization_msg_);
-    }
-  }
-
-  // Add pending poses.
-  Pose2Df pose = localization_.GetLastMLEPose();
-  for (size_t i = 0; i < pending_poses.size(); ++i) {
-    pose.ApplyPose(pending_poses[i]);
-    const Vector2f p0 = pose.translation;
-    const Vector2f p1 = pose.translation +
-        Rotation2Df(pose.angle) * Vector2f(0.3, 0.0);
-    //DrawLine(p0, p1, 0x7FC0C0C0, &display_message_);
-    DrawLine(p0, p1, 0x7F0000FF, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(p0, p1, 0x7F0000FF, visualization_msg_);
-    DrawPoint(p0, 0xFFFF0000, &display_message_);
-  }
-  PublishDisplay();
 }
 
 void GetCovarianceFromRelativePose(const Vector2f& relative_location,
@@ -1416,8 +1262,8 @@ void CorrespondenceCallback(
     const vector<Matrix2f>& covariances,
     const vector<Pose2Df>& odometry_poses,
     const size_t start_pose, const size_t end_pose) {
-  static const bool kDisplayLtfCorrespondences = true;
-  static const bool kDisplayStfCorrespondences = true;
+  static const bool kDisplayLtfCorrespondences = false;
+  static const bool kDisplayStfCorrespondences = false;
   static const bool kDisplayRayCasts = false;
   static const bool kDisplayFactorGraph = false;
   CHECK_EQ(poses.size(), point_clouds.size() * 3);
@@ -1426,6 +1272,9 @@ void CorrespondenceCallback(
   ClearDisplay();
   if (!run_) {
     localization_.Terminate();
+  }
+  if (debug_level_ >= 1) {
+    PublishTrace();
   }
   DrawPoses(start_pose, end_pose, odometry_poses, poses, covariances);
   DrawGradients(start_pose, end_pose, gradients, poses);
@@ -1448,9 +1297,6 @@ void CorrespondenceCallback(
   }
   if (kDisplayStfCorrespondences) {
     DrawStfs(point_point_correspondences, poses, point_clouds, normal_clouds);
-  }
-  if (debug_level_ >= 1) {
-    PublishTrace();
   }
   PublishDisplay();
 }
@@ -2025,6 +1871,8 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
     printf("Initialize %s %f,%f %f\u00b0\n",
         msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
   }
+  localization_.Initialize(
+      Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), kMapName);
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -2049,10 +1897,6 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
 
   while (run_ && ros::ok()) {
     Sleep(0.02);
-    if (debug_level_ > -1) {
-      ClearDrawingMessage(&display_message_);
-      DisplayDebug();
-    }
     // TODO: Handle dynamic reloading of config.
     ros::spinOnce();
   }
@@ -2165,7 +2009,7 @@ int main(int argc, char** argv) {
       "Cobot/VectorLocalization/Gui",1,true);
   localization_publisher_ =
       ros_node.advertise<amrl_msgs::Localization2DMsg>(
-      "Enml/Localization", 1, true);
+      "localization", 1, true);
   if (kUseWebViz) {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(

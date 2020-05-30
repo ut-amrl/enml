@@ -136,12 +136,12 @@ if RobotConfig.name=="ut-jackal" then
 end
 
 if RobotConfig.name=="ut-automata" then
-  -- enml.map_name = "Joydeepb-Home";
+  enml.map_name = "Joydeepb-Home";
   -- -- enml.map_name = "EmptyMap";
   -- enml.starting_loc_x = 0;
   -- enml.starting_loc_y = 0;
   -- enml.starting_angle = deg2rad(-33.0);
-  enml.map_name = "GDC3";
+  -- enml.map_name = "GDC3";
   enml.starting_loc_x = 14.8;
   enml.starting_loc_y = 14.4;
   enml.starting_angle = deg2rad(180.0);
