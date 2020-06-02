@@ -202,7 +202,7 @@ NonMarkovLocalization::~NonMarkovLocalization() {
 }
 
 string NonMarkovLocalization::GetMapFileFromName(const string& map) const {
-  return maps_dir_ + "/" + map + "/" + map + ".txt";
+  return maps_dir_ + "/" + map + "/" + map + ".vectormap.txt";
 }
 
 void NonMarkovLocalization::Reset() {

@@ -1872,7 +1872,8 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
         msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
   }
   localization_.Initialize(
-      Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), kMapName);
+      Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
+  localization_publisher_.publish(msg);
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {

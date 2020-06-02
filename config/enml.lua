@@ -78,10 +78,10 @@ enml = {
 if RobotConfig.name=="ut-jackal" then
   -- enml.map_name = "EmptyMap";
   enml.map_name = "Joydeepb-Driveway";
-  enml.starting_loc_x = 1;
+  enml.starting_loc_x = 0.5;
   enml.starting_loc_y = 0;
   -- enml.starting_angle = deg2rad(25.0);
-  enml.starting_angle = deg2rad(5);
+  enml.starting_angle = deg2rad(0);
 
   -- -- Odometry parameters.
   enml.min_rotation = deg2rad(2.0);
@@ -126,13 +126,13 @@ if RobotConfig.name=="ut-jackal" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 2;
-  enml.max_solver_iterations = 30;
+  enml.max_history = 4;
+  enml.max_solver_iterations = 10;
   enml.num_repeat_iterations = 1;
   enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
   enml.num_threads = 12;
-  enml.limit_history = true;
+  enml.limit_history = false;
 end
 
 if RobotConfig.name=="ut-automata" then
@@ -155,8 +155,8 @@ if RobotConfig.name=="ut-automata" then
   enml.num_skip_readings = 4;
 
   -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(10);
-  enml.min_translation = 0.4;
+  enml.min_rotation = deg2rad(5);
+  enml.min_translation = 0.1;
 
   -- Parameters for STF constraints.
   enml.point_match_threshold = 0.15;
