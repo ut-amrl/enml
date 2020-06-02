@@ -78,6 +78,7 @@ enml = {
 if RobotConfig.name=="ut-jackal" then
   -- enml.map_name = "EmptyMap";
   enml.map_name = "Joydeepb-Driveway";
+  -- enml.map_name = "Joydeepb-Home";
   enml.starting_loc_x = 0.5;
   enml.starting_loc_y = 0;
   -- enml.starting_angle = deg2rad(25.0);

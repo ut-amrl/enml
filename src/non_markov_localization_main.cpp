@@ -1066,6 +1066,7 @@ void DrawObservations(
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications) {
   static const bool kDisplayTangents = false;
+  int num_ltfs = 0, num_stfs = 0, num_dfs = 0;
   for (size_t i = 0; i <= end_pose; ++i) {
     const vector<Vector2f> &point_cloud = point_clouds[i];
     const vector<Vector2f> &normal_cloud = normal_clouds[i];
@@ -1082,14 +1083,17 @@ void DrawObservations(
         switch (classifications[i][j]) {
           case NonMarkovLocalization::kLtfObservation : {
             point_color = kLtfPointColor;
+            ++num_ltfs;
           } break;
           case NonMarkovLocalization::kStfObservation : {
             // DrawLine(point, pose_location, 0x1F994CD9, &display_message_);
             point_color = kStfPointColor;
+            ++num_stfs;
             valid_point = true;
           } break;
           case NonMarkovLocalization::kDfObservation : {
             point_color = kDfPointColor;
+            ++num_dfs;
             valid_point = true;
             if (i == end_pose) continue;
           } break;
@@ -1108,6 +1112,7 @@ void DrawObservations(
       if (kUseWebViz) visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
+  printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
 }
 
 void DrawGradients(
@@ -1890,7 +1895,7 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
       node->subscribe(CONFIG_scan_topic, 1, LaserCallback);
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
-  Subscriber initialize_subscriber = 
+  Subscriber initialize_subscriber =
       node->subscribe("/set_pose", 1, InitializeCallback);
 
   ClearDisplay();

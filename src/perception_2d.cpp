@@ -20,6 +20,7 @@
 #include "perception_2d.h"
 
 #include <math.h>
+#include <iostream>
 #include <vector>
 
 #include "eigen3/Eigen/Dense"
@@ -49,6 +50,7 @@ void GenerateNormals(const float max_point_neighbor_distance,
     float weight = 0.0;
     Vector2f tangent(0, 0);
     for (int j = -(N - 1); j < N; ++j) {
+      if (j == 0) continue;
       const int k = i + j;
       if (k >= 0 &&
           k < int(point_cloud.size()) &&
@@ -63,6 +65,13 @@ void GenerateNormals(const float max_point_neighbor_distance,
       }
     }
     if (weight > 0.0f) {
+      if (false) {
+        std::cout << "tangent:\n"
+                  << tangent
+                  << "\nWeight:"
+                  << weight
+                  << "\n";
+      }
       normal_cloud[i] = RotateBy90<float>(tangent / weight).normalized();
     } else {
       point_cloud.erase(point_cloud.begin() + i);

@@ -99,14 +99,16 @@ struct EnmlTiming {
       ceres_iterations(0),
       enml_iterations(0) {}
   ~EnmlTiming() {
-    printf("ENML Iters:%3d Ceres Iters: %3d"
-           " LTFs:%6.3f STFs:%6.3f Constraints:%6.3f Solver:%6.3f\n",
-           enml_iterations,
-           ceres_iterations,
-           find_ltfs,
-           find_stfs,
-           add_constraints,
-           solver);
+    if (false) {
+      printf("ENML Iters:%3d Ceres Iters: %3d"
+            " LTFs:%6.3f STFs:%6.3f Constraints:%6.3f Solver:%6.3f\n",
+            enml_iterations,
+            ceres_iterations,
+            find_ltfs,
+            find_stfs,
+            add_constraints,
+            solver);
+    }
   }
 };
 
@@ -505,9 +507,12 @@ bool NonMarkovLocalization::IsValidLTFCorrespondence(
   const Vector2f point_transformed =
       pose_rotation * point + pose_location;
   const Vector2f normal_transformed = pose_rotation * normal;
-  const bool angle_match = (fabs(line.UnitNormal().dot(normal_transformed)) >
-      cos(localization_options_.kMaxAngleError));
-  if (!angle_match) return false;
+  const float dot_product = fabs(line.UnitNormal().dot(normal_transformed));
+  const bool angle_match =
+      dot_product > cos(localization_options_.kMaxAngleError);
+  if (!angle_match) {
+    return false;
+  }
   const float dist_from_line = line.Distance(point_transformed);
   // const float dist_from_line = line.Distance(point_transformed);
   // const Vector2f n = line.UnitNormal();
