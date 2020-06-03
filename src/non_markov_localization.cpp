@@ -1561,7 +1561,7 @@ void NonMarkovLocalization::Initialize(const Pose2Df& pose,
 }
 
 string NonMarkovLocalization::GetCurrentMapName() const {
-  return (vector_map_.file_name);
+  return (map_name_);
 }
 
 bool NonMarkovLocalization::RunningSolver() const {
