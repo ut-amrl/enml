@@ -47,13 +47,7 @@ SET(libs roslib roscpp ncurses popt pthread glut boost_system
     ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
     ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11 amrl-shared-lib)
 
-SET(GUI_SRCS
-  src/gui/vector_display.cpp
-  src/gui/gui_publisher_helper.cpp
-  src/gui/gltext.cpp
-)
-
-ADD_LIBRARY(enml_support_lib
+ROSBUILD_ADD_LIBRARY(enml_support_lib
     src/kdtree.cpp
     src/gui_publisher_helper.cpp
     src/perception_2d.cpp
