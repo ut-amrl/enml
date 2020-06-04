@@ -34,9 +34,6 @@ enml = {
   odometry_translation_max_stddev = 10.5;
   odometry_rotation_min_stddev = deg2rad(1.0);
   odometry_rotation_max_stddev = deg2rad(1500.0);
-  radial_translation_uncertainty = 0.01;
-  tangential_translation_uncertainty = 0.01;
-  angle_uncertainty = 0.05;
 
   -- Parameters for LTF constraints.
   map_huber_loss = 0.1;
@@ -77,8 +74,9 @@ enml = {
 
 if RobotConfig.name=="ut-jackal" then
   -- enml.map_name = "EmptyMap";
-  enml.map_name = "Joydeepb-Driveway";
+  -- enml.map_name = "Joydeepb-Driveway";
   -- enml.map_name = "Joydeepb-Home";
+  enml.map_name = "UT_Campus";
   enml.starting_loc_x = 0.5;
   enml.starting_loc_y = 0;
   -- enml.starting_angle = deg2rad(25.0);
@@ -100,14 +98,11 @@ if RobotConfig.name=="ut-jackal" then
   enml.max_update_period = 0.5;
   enml.odometry_radial_stddev_rate = 0.1;
   enml.odometry_tangential_stddev_rate = 0.1;
-  enml.odometry_angular_stddev_rate = 0.3;
+  enml.odometry_angular_stddev_rate = 0.5;
   enml.odometry_translation_min_stddev = 0.001;
   enml.odometry_translation_max_stddev = 10.5;
-  enml.odometry_rotation_min_stddev = deg2rad(1.0);
+  enml.odometry_rotation_min_stddev = deg2rad(10.0);
   enml.odometry_rotation_max_stddev = deg2rad(1500.0);
-  enml.radial_translation_uncertainty = 0.01;
-  enml.tangential_translation_uncertainty = 0.01;
-  enml.angle_uncertainty = 0.05;
 
   -- Parameters for STF constraints.
   enml.point_match_threshold = 0.25;
@@ -116,9 +111,9 @@ if RobotConfig.name=="ut-jackal" then
   enml.point_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for LTF constraints.
-  enml.map_huber_loss = 0.1;
-  enml.max_point_to_line_distance = 0.3;
-  enml.max_angle_error = deg2rad(35.0);
+  enml.map_huber_loss = 0.2;
+  enml.max_point_to_line_distance = 0.7;
+  enml.max_angle_error = deg2rad(45.0);
   enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.

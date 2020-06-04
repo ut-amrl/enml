@@ -137,12 +137,6 @@ string kMapName;
 Vector2f kStartingLocation = Vector2f(-9.0, 42.837);
 // Robot's starting angle.
 float kStartingAngle = DegToRad(-165.0);
-// Uncertainty of translation in the direction of travel.
-float kRadialTranslationUncertainty = 0.05;
-// Uncertainty of translation perpendicular to the direction of travel.
-float kTangentialTranslationUncertainty = 0.05;
-// Uncertainty of rotation in radians after moving 1 radian.
-float kAngleUncertainty = 0.05;
 // Scaling constant to correct for error in angular odometry.
 float kOdometryRotationScale = 1.0;
 // Scaling constant to correct for error in translation odometry.
@@ -369,9 +363,6 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(starting_loc_x);
   ENML_FLOAT_CONFIG(starting_loc_y);
   ENML_FLOAT_CONFIG(starting_angle);
-  ENML_FLOAT_CONFIG(radial_translation_uncertainty);
-  ENML_FLOAT_CONFIG(tangential_translation_uncertainty);
-  ENML_FLOAT_CONFIG(angle_uncertainty);
   ENML_FLOAT_CONFIG(odometry_translation_scale);
   ENML_FLOAT_CONFIG(odometry_rotation_scale);
   ENML_FLOAT_CONFIG(max_odometry_delta_loc);
@@ -455,9 +446,6 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
 
   kStartingLocation = Vector2f(CONFIG_starting_loc_x, CONFIG_starting_loc_y);
   kStartingAngle = CONFIG_starting_angle;
-  kRadialTranslationUncertainty = CONFIG_radial_translation_uncertainty;
-  kTangentialTranslationUncertainty = CONFIG_tangential_translation_uncertainty;
-  kAngleUncertainty = CONFIG_angle_uncertainty;
   kOdometryTranslationScale = CONFIG_odometry_translation_scale;
   kOdometryRotationScale = CONFIG_odometry_rotation_scale;
   kSqMaxOdometryDeltaLoc = Sq(CONFIG_max_odometry_delta_loc);
@@ -650,26 +638,6 @@ void SaveEpisodeStats(FILE* fid) {
           num_ltfs,
           num_stfs,
           num_dfs);
-}
-
-void GetCovarianceFromRelativePose(const Vector2f& relative_location,
-                                   const float& relative_angle,
-                                   Matrix3f* covariance) {
-  covariance->setZero();
-  if (relative_location.norm() > FLT_MIN) {
-    const Vector2f radial_direction(relative_location.normalized());
-    const Vector2f tangential_direction(Rotation2Df(M_PI_2) * radial_direction);
-    Matrix2f eigenvectors;
-    eigenvectors.leftCols<1>() = radial_direction;
-    eigenvectors.rightCols<1>() = tangential_direction;
-    Matrix2f eigenvalues;
-    eigenvalues.setZero();
-    eigenvalues(0, 0) = kRadialTranslationUncertainty;
-    eigenvalues(1, 1) = kTangentialTranslationUncertainty;
-    covariance->block<2, 2>(0, 0) =
-        eigenvectors * eigenvalues * (eigenvectors.transpose());
-  }
-  (*covariance)(2, 2) = kAngleUncertainty * fabs(relative_angle);
 }
 
 bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
@@ -1112,7 +1080,7 @@ void DrawObservations(
       if (kUseWebViz) visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
-  printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
+  // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
 }
 
 void DrawGradients(
@@ -1737,7 +1705,7 @@ void PlayBagFile(const string& bag_file,
 
   nav_msgs::Odometry last_standard_odometry;
   sensor_msgs::LaserScan last_laser_scan;
-  Pose2Df last_laser_pose;
+  Pose2Df last_laser_pose(0, 0, 0);
   bool standard_odometry_initialized = false;
   vector<Pose2Df> pose_trajectory;
   nonblock(true);
@@ -1759,8 +1727,15 @@ void PlayBagFile(const string& bag_file,
       const int hh = rint(elapsed_time / 3600.0);
       const int mm = rint(fmod(elapsed_time, 3600.0) / 60.0);
       const float ss = fmod(elapsed_time, 60.0);
-      printf("\r%02d:%02d:%04.1f (%.1f) Lost:%.3f",
-            hh, mm, ss, elapsed_time, localization_.GetLostMetric());
+      if (false) {
+        printf("\r%02d:%02d:%04.1f (%.1f) Lost:%.3f",
+              hh, mm, ss, elapsed_time, localization_.GetLostMetric());
+      }
+      printf("\r%02d:%02d:%04.1f (%.1f) Pose:%8.3f,%8.3f,%6.2f\u00b0",
+             hh, mm, ss, elapsed_time, 
+             last_laser_pose.translation.x(),
+             last_laser_pose.translation.y(),
+             RadToDeg(last_laser_pose.angle));
     }
     fflush(stdout);
     int keycode = -1;
