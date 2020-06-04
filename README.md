@@ -1,5 +1,7 @@
 # Episodic non-Markov Localization
 
+[![Build Status](https://travis-ci.com/ut-amrl/enml.svg?token=rBLDT1qXfkKmkTerGLzY&branch=master)](https://travis-ci.com/ut-amrl/enml)
+
 Implementation in C++ of Episodic non-Markov Localization [[pdf]](https://www.joydeepb.com/Publications/ras_episodic_nonmarkov_localization.pdf).
 Please cite this work using the following bibtex:
 ```
