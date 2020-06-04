@@ -137,12 +137,6 @@ string kMapName;
 Vector2f kStartingLocation = Vector2f(-9.0, 42.837);
 // Robot's starting angle.
 float kStartingAngle = DegToRad(-165.0);
-// Uncertainty of translation in the direction of travel.
-float kRadialTranslationUncertainty = 0.05;
-// Uncertainty of translation perpendicular to the direction of travel.
-float kTangentialTranslationUncertainty = 0.05;
-// Uncertainty of rotation in radians after moving 1 radian.
-float kAngleUncertainty = 0.05;
 // Scaling constant to correct for error in angular odometry.
 float kOdometryRotationScale = 1.0;
 // Scaling constant to correct for error in translation odometry.
@@ -369,9 +363,6 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(starting_loc_x);
   ENML_FLOAT_CONFIG(starting_loc_y);
   ENML_FLOAT_CONFIG(starting_angle);
-  ENML_FLOAT_CONFIG(radial_translation_uncertainty);
-  ENML_FLOAT_CONFIG(tangential_translation_uncertainty);
-  ENML_FLOAT_CONFIG(angle_uncertainty);
   ENML_FLOAT_CONFIG(odometry_translation_scale);
   ENML_FLOAT_CONFIG(odometry_rotation_scale);
   ENML_FLOAT_CONFIG(max_odometry_delta_loc);
@@ -455,9 +446,6 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
 
   kStartingLocation = Vector2f(CONFIG_starting_loc_x, CONFIG_starting_loc_y);
   kStartingAngle = CONFIG_starting_angle;
-  kRadialTranslationUncertainty = CONFIG_radial_translation_uncertainty;
-  kTangentialTranslationUncertainty = CONFIG_tangential_translation_uncertainty;
-  kAngleUncertainty = CONFIG_angle_uncertainty;
   kOdometryTranslationScale = CONFIG_odometry_translation_scale;
   kOdometryRotationScale = CONFIG_odometry_rotation_scale;
   kSqMaxOdometryDeltaLoc = Sq(CONFIG_max_odometry_delta_loc);
@@ -650,26 +638,6 @@ void SaveEpisodeStats(FILE* fid) {
           num_ltfs,
           num_stfs,
           num_dfs);
-}
-
-void GetCovarianceFromRelativePose(const Vector2f& relative_location,
-                                   const float& relative_angle,
-                                   Matrix3f* covariance) {
-  covariance->setZero();
-  if (relative_location.norm() > FLT_MIN) {
-    const Vector2f radial_direction(relative_location.normalized());
-    const Vector2f tangential_direction(Rotation2Df(M_PI_2) * radial_direction);
-    Matrix2f eigenvectors;
-    eigenvectors.leftCols<1>() = radial_direction;
-    eigenvectors.rightCols<1>() = tangential_direction;
-    Matrix2f eigenvalues;
-    eigenvalues.setZero();
-    eigenvalues(0, 0) = kRadialTranslationUncertainty;
-    eigenvalues(1, 1) = kTangentialTranslationUncertainty;
-    covariance->block<2, 2>(0, 0) =
-        eigenvectors * eigenvalues * (eigenvectors.transpose());
-  }
-  (*covariance)(2, 2) = kAngleUncertainty * fabs(relative_angle);
 }
 
 bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
