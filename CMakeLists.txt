@@ -3,7 +3,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 SET(arch ${})
 
-SET(CMAKE_CXX_FLAGS "-march=native -Wall -g -rdynamic")
+SET(CMAKE_CXX_FLAGS "-march=native -Wall -g")
 
 IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
   MESSAGE(STATUS "Additional Flags for Release mode")
@@ -12,7 +12,7 @@ IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
   SET(BUILD_SPECIFIC_LIBRARIES "tcmalloc")
 ELSEIF(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   MESSAGE(STATUS "Additional Flags for Debug mode")
-  SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -rdynamic")
+  SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g")
   SET(BUILD_SPECIFIC_LIBRARIES "")
 ENDIF()
 
