@@ -1112,7 +1112,7 @@ void DrawObservations(
       if (kUseWebViz) visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
-  printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
+  // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
 }
 
 void DrawGradients(
@@ -1737,7 +1737,7 @@ void PlayBagFile(const string& bag_file,
 
   nav_msgs::Odometry last_standard_odometry;
   sensor_msgs::LaserScan last_laser_scan;
-  Pose2Df last_laser_pose;
+  Pose2Df last_laser_pose(0, 0, 0);
   bool standard_odometry_initialized = false;
   vector<Pose2Df> pose_trajectory;
   nonblock(true);
@@ -1759,8 +1759,15 @@ void PlayBagFile(const string& bag_file,
       const int hh = rint(elapsed_time / 3600.0);
       const int mm = rint(fmod(elapsed_time, 3600.0) / 60.0);
       const float ss = fmod(elapsed_time, 60.0);
-      printf("\r%02d:%02d:%04.1f (%.1f) Lost:%.3f",
-            hh, mm, ss, elapsed_time, localization_.GetLostMetric());
+      if (false) {
+        printf("\r%02d:%02d:%04.1f (%.1f) Lost:%.3f",
+              hh, mm, ss, elapsed_time, localization_.GetLostMetric());
+      }
+      printf("\r%02d:%02d:%04.1f (%.1f) Pose:%8.3f,%8.3f,%6.2f\u00b0",
+             hh, mm, ss, elapsed_time, 
+             last_laser_pose.translation.x(),
+             last_laser_pose.translation.y(),
+             RadToDeg(last_laser_pose.angle));
     }
     fflush(stdout);
     int keycode = -1;
