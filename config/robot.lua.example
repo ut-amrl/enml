@@ -1,0 +1,16 @@
+-- RobotConfig = {
+--   name = "ut-automata";
+--   scan_topic = "/scan";
+--   odometry_topic = "/odom";
+--   initialpose_topic = "/initialpose";
+--   pointcloud_topic = "";
+-- };
+
+RobotConfig = {
+  name = "ut-jackal";
+  scan_topic = "/velodyne_2dscan_high_beams";
+  pointcloud_topic = "";
+  odometry_topic = "/jackal_velocity_controller/odom";
+  -- odometry_topic = "/odometry/filtered";
+  initialpose_topic = "/initialpose";
+};
