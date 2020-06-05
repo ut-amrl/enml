@@ -26,3 +26,28 @@ Please cite this work using the following bibtex:
     export ROS_PACKAGE_PATH=`pwd`:$ROS_PACKAGE_PATH
     ```
 1. Run `make`
+
+## Configuration
+This project uses the `config-reader`.
+
+The main configuration file can be found at `config/enml.lua`, which specifies parameters for the ENML algorithm. including the map name used to localize.
+
+In addition, a file called `config/robot.lua` must be specified, which configures the input topics, robot name, etc. An example can be found at `config/robot.lua.example`.
+
+## Usage
+
+To run enml, simply run `./bin/enml`
+
+While running, you may want to visualize what's going on. To do this, add the `-d1` flag to the run command, which will cause enml to publish visualization messages while running.
+
+To see the resultant visualization, there are 2 options:
+#### Localization GUI
+Obtain and setup the `ut-amrl/cobot` repo.
+Then run `./bin/localization_gui`, with the `map-name` parameter matching the map used for enml localization. This will automatically
+
+#### WebRViz
+Obtain and setup the `ut-amrl/robofleet-deployment-server` repo.
+
+Run the websocket `./bin/websocket`. 
+
+Open the webrviz html file in browser, and connect to localhost.
