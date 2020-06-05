@@ -38,16 +38,18 @@ In addition, a file called `config/robot.lua` must be specified, which configure
 
 To run enml, simply run `./bin/enml`
 
+### Visualization
+
 While running, you may want to visualize what's going on. To do this, add the `-d1` flag to the run command, which will cause enml to publish visualization messages while running.
 
 To see the resultant visualization, there are 2 options:
 #### Localization GUI
 Obtain and setup the `ut-amrl/cobot` repo.
-Then run `./bin/localization_gui`, with the `map-name` parameter matching the map used for enml localization. This will automatically
+Then run `./bin/localization_gui`, with the `map-name` parameter matching the map used for enml localization. This will automatically listen to the same topics `enml` is publishing, and you will see the visualization in the localization gui's window.
 
 #### WebRViz
 Obtain and setup the `ut-amrl/robofleet-deployment-server` repo.
 
 Run the websocket `./bin/websocket`. 
 
-Open the webrviz html file in browser, and connect to localhost.
+Open the webrviz html file in browser, and connect to localhost. This will automatically listen to the same topics `enml` is publishing, and you will see the visualization in the web rviz's viewport.
