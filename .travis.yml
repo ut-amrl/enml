@@ -25,6 +25,9 @@ addons:
       - cmake
       - clang-7
 before_install:
+  - sudo add-apt-repository universe
+  - sudo add-apt-repository multiverse
+  - sudo apt update
   - sudo sh -c "echo \"deb http://packages.ros.org/ros/ubuntu $ROS_CI_DESKTOP main\" > /etc/apt/sources.list.d/ros-latest.list"
   - sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
   - sudo apt-get update -qq
@@ -38,7 +41,6 @@ before_install:
     libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
     libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev
   - source /opt/ros/melodic/setup.bash
-  # Prepare rosdep to install dependencies.
   - sudo rosdep init
   - rosdep update --include-eol-distros  # Support EOL distros.
   - pushd $CI_SOURCE_PATH/..
