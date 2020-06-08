@@ -63,3 +63,7 @@ ADD_DEPENDENCIES(enml
     rosbuild_precompile
     ceres)
 TARGET_LINK_LIBRARIES(enml enml_support_lib)
+
+ROSBUILD_ADD_EXECUTABLE(add_initialization
+    src/add_initialization.cpp)
+TARGET_LINK_LIBRARIES(add_initialization console_bridge enml_support_lib)
