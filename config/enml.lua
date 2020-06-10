@@ -73,24 +73,49 @@ enml = {
 };
 
 if RobotConfig.name=="ut-jackal" then
-  -- enml.map_name = "EmptyMap";
-  -- enml.map_name = "Joydeepb-Driveway";
-  -- enml.map_name = "Joydeepb-Home";
+  -- 2020-06-03-18-51-39.bag
   enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 0.5;
-  enml.starting_loc_y = 0;
-  -- enml.starting_angle = deg2rad(25.0);
-  enml.starting_angle = deg2rad(0);
+  enml.starting_loc_x = 131;
+  enml.starting_loc_y = -245;
+  enml.starting_angle = deg2rad(-85);
+
+  -- 2020-06-03-18-56-16.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = -24.693;
+  -- enml.starting_loc_y = -27;
+  -- enml.starting_angle = deg2rad(56.41);
+
+  -- 2020-06-03-15-37-53.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 0;
+  -- enml.starting_loc_y = 0;
+  -- enml.starting_angle = deg2rad(0);
+
+  -- 2020-03-12-16-21-47-GDC-Plaza-Loop-4.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.map_name = "EmptyMap";
+  -- enml.starting_loc_x = 168;
+  -- enml.starting_loc_y = -213;
+  -- enml.starting_angle = deg2rad(-86);
+  -- Skip 222.5 into bag:
+  -- enml.starting_loc_x = 157.54;
+  -- enml.starting_loc_y = -155.64;
+  -- enml.starting_angle = deg2rad(-86.5);
+
+  -- enml.map_name = "EmptyMap";
+  -- enml.starting_loc_x = 0;
+  -- enml.starting_loc_y = 0;
+  -- enml.starting_angle = deg2rad(0);
 
   -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(2.0);
+  enml.min_rotation = deg2rad(5.0);
   enml.min_translation = 0.25;
 
   -- VLP16 Sensor parameters.
   enml.laser_std_dev = 0.01;
   enml.min_point_cloud_range = 0.02;
   enml.max_point_cloud_range = 100;
-  enml.max_normal_point_distance = 0.5;
+  enml.max_normal_point_distance = 0.75;
   enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
   enml.num_skip_readings = 1;
 
@@ -111,9 +136,9 @@ if RobotConfig.name=="ut-jackal" then
   enml.point_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for LTF constraints.
-  enml.map_huber_loss = 0.2;
+  enml.map_huber_loss = 0.25;
   enml.max_point_to_line_distance = 0.7;
-  enml.max_angle_error = deg2rad(45.0);
+  enml.max_angle_error = deg2rad(35.0);
   enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.
@@ -122,13 +147,13 @@ if RobotConfig.name=="ut-jackal" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 4;
+  enml.max_history = 5;
   enml.max_solver_iterations = 10;
   enml.num_repeat_iterations = 1;
   enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
-  enml.num_threads = 12;
-  enml.limit_history = false;
+  enml.num_threads = 24;
+  enml.limit_history = true;
 end
 
 if RobotConfig.name=="ut-automata" then

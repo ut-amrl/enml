@@ -1732,7 +1732,7 @@ void PlayBagFile(const string& bag_file,
               hh, mm, ss, elapsed_time, localization_.GetLostMetric());
       }
       printf("\r%02d:%02d:%04.1f (%.1f) Pose:%8.3f,%8.3f,%6.2f\u00b0",
-             hh, mm, ss, elapsed_time, 
+             hh, mm, ss, elapsed_time,
              last_laser_pose.translation.x(),
              last_laser_pose.translation.y(),
              RadToDeg(last_laser_pose.angle));
@@ -1782,6 +1782,7 @@ void PlayBagFile(const string& bag_file,
         last_laser_scan = *laser_message;
         last_laser_pose = localization_.GetLatestPose();
         pose_trajectory.push_back(localization_.GetLatestPose());
+        PublishLocation();
         continue;
       }
     }
