@@ -73,11 +73,18 @@ enml = {
 };
 
 if RobotConfig.name=="ut-jackal" then
-  -- 2020-06-03-18-51-39.bag
+  -- On the cobblestone next to the GDC door closest to the lab, 
+  -- right next to grass, on the side with the lamp post and facing Speedway.
   enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 131;
-  enml.starting_loc_y = -245;
-  enml.starting_angle = deg2rad(-85);
+  enml.starting_loc_x = 114.067214966;
+  enml.starting_loc_y = -251.863693237;
+  enml.starting_angle = deg2rad(-175);
+
+  -- 2020-06-03-18-51-39.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 131;
+  -- enml.starting_loc_y = -245;
+  -- enml.starting_angle = deg2rad(-85);
 
   -- 2020-06-03-18-56-16.bag
   -- enml.map_name = "UT_Campus";
