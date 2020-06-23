@@ -74,10 +74,16 @@ enml = {
 
 if RobotConfig.name=="ut-jackal" then
   -- 2020-06-03-18-51-39.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 131;
+  -- enml.starting_loc_y = -245;
+  -- enml.starting_angle = deg2rad(-85);
+
+  -- 2020-06-18-17-54-48.bag
   enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 131;
-  enml.starting_loc_y = -245;
-  enml.starting_angle = deg2rad(-85);
+  enml.starting_loc_x = 132;
+  enml.starting_loc_y = -247.5;
+  enml.starting_angle = deg2rad(95);
 
   -- 2020-06-03-18-56-16.bag
   -- enml.map_name = "UT_Campus";

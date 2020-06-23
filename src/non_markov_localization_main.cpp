@@ -43,7 +43,6 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
 
-#include "enml/LidarDisplayMsg.h"
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
 
@@ -59,13 +58,9 @@
 #include "shared/util/timer.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
-#include "gui_publisher_helper.h"
 #include "config_reader/config_reader.h"
 #include "visualization/visualization.h"
 
-using cobot_gui::DrawLine;
-using cobot_gui::DrawPoint;
-using cobot_gui::ClearDrawingMessage;
 using Eigen::Affine2d;
 using Eigen::Affine2f;
 using Eigen::Matrix2d;
@@ -124,8 +119,6 @@ amrl_msgs::Localization2DMsg localization_msg_;
 // ROS message for visualization with WebViz.
 amrl_msgs::VisualizationMsg visualization_msg_;
 
-const bool kUseWebViz = true;
-
 util_random::Random rand_;
 }  // namespace
 
@@ -182,13 +175,7 @@ static const uint32_t kDfPointColor  = 0x7F37B30C;
 bool run_ = true;
 int debug_level_ = -1;
 
-// Display message for drawing debug vizualizations on the localization_gui.
-enml::LidarDisplayMsg display_message_;
-
-// ROS publisher to publish display_message_.
-ros::Publisher display_publisher_;
-
-// ROS publisher to publish WebViz message.
+// ROS publisher to publish visualization messages.
 ros::Publisher visualization_publisher_;
 
 // ROS publisher to publish the latest robot localization.
@@ -302,20 +289,16 @@ void PublishTrace() {
   for(unsigned int i = 0; i + 1 < trace.size(); i++){
     if((trace[i]-trace[i+1]).squaredNorm()>Sq(5.0))
       continue;
-    DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);
+    visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);
   }
 }
 
 void ClearDisplay() {
-  ClearDrawingMessage(&display_message_);
-  if (kUseWebViz) visualization::ClearVisualizationMsg(visualization_msg_);
+  visualization::ClearVisualizationMsg(visualization_msg_);
 }
 
 void PublishDisplay() {
-  display_publisher_.publish(display_message_);
-  ClearDrawingMessage(&display_message_);
-  if (kUseWebViz) visualization_publisher_.publish(visualization_msg_);
+  visualization_publisher_.publish(visualization_msg_);
 }
 
 int kbhit() {
@@ -516,7 +499,7 @@ void SaveStfs(
   fprintf(fid(), "%lf\n", timestamp);
   VectorMap map(kMapsDirectory + "/" + map_name + ".txt");
   if (kDisplaySteps) {
-    ClearDrawingMessage(&display_message_);
+    visualization::ClearVisualizationMsg(visualization_msg_);
     nonblock(true);
   }
   for (size_t i = 0; i < point_clouds.size(); ++i) {
@@ -529,13 +512,12 @@ void SaveStfs(
     for (unsigned int j = 0; j < point_clouds[i].size(); ++j) {
       const Vector2f p = pose_transform * point_clouds[i][j];
       if (kDisplaySteps) {
-        DrawLine(p, poses[i].translation, 0x1FC0C0C0, &display_message_);
-        if (kUseWebViz) visualization::DrawLine(p, poses[i].translation, 0x1FC0C0C0, visualization_msg_);
+        visualization::DrawLine(p, poses[i].translation, 0x1FC0C0C0, visualization_msg_);
       }
       if (!kSaveAllObservations &&
           classifications[i][j] != NonMarkovLocalization::kStfObservation) {
         if (kDisplaySteps) {
-          DrawPoint(p, kLtfPointColor, &display_message_);
+          visualization::DrawPoint(p, kLtfPointColor, visualization_msg_);
         }
         continue;
       }
@@ -563,7 +545,7 @@ void SaveStfs(
           poses[i].translation.x(), poses[i].translation.y(),
           poses[i].angle, p.x(), p.y(), n.x(), n.y());
       if (kDisplaySteps) {
-        DrawPoint(p, kStfPointColor, &display_message_);
+        visualization::DrawPoint(p, kStfPointColor, visualization_msg_);
       }
     }
     if (kDisplaySteps) {
@@ -919,13 +901,11 @@ void DrawVisibilityConstraints(
           constraint.line_normals[j].dot(point_global - constraint.line_p1s[j]);
       const Vector2f point_anchor =
           point_global - constraint.line_normals[j] * point_offset;
-      DrawLine(point_global, point_anchor, 0xFFFF0000, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(point_global, point_anchor, 0xFFFF0000, visualization_msg_);
+      visualization::DrawLine(point_global, point_anchor, 0xFFFF0000, visualization_msg_);
       const float alpha = Clamp(fabs(point_offset) / 5.0, 0.0, 0.2);
       const uint32_t colour =
           (static_cast<uint32_t>(255.0 * alpha) << 24) | 0xFF0000;
-      DrawLine(point_global, pose_translation, colour, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(point_global, pose_translation, colour, visualization_msg_);
+      visualization::DrawLine(point_global, pose_translation, colour, visualization_msg_);
     }
   }
 }
@@ -951,8 +931,7 @@ void DrawStfs(
     for (size_t j = 0; j < point_point_correspondences[i].points0.size(); ++j) {
       const Vector2f p0 = pose_tf0 * point_point_correspondences[i].points0[j];
       const Vector2f p1 = pose_tf1 * point_point_correspondences[i].points1[j];
-      DrawLine(p0, p1, kStfCorrespondenceColor, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(p0, p1, kStfCorrespondenceColor, visualization_msg_);
+      visualization::DrawLine(p0, p1, kStfCorrespondenceColor, visualization_msg_);
       mse += (p0 - p1).squaredNorm() / n;
     }
   }
@@ -1001,8 +980,7 @@ void DrawLtfs(
         if (scan[j] > 0.95 * localization_options_.kMaxRange) continue;
         const float a = pose_angle -kAngleMax + float(j) * da;
         const Vector2f p = laser_loc + Vector2f(scan[j] * cos(a), scan[j] * sin(a));
-        DrawLine(laser_loc, p, 0x0FFF0000, &display_message_);
-        if (kUseWebViz) visualization::DrawLine(laser_loc, p, 0x0FFF0000, visualization_msg_);
+        visualization::DrawLine(laser_loc, p, 0x0FFF0000, visualization_msg_);
       }
     }
   }
@@ -1018,9 +996,7 @@ void DrawLtfs(
       const int correspondence = point_line_correspondences[i][j];
       const Line2f& line = ray_cast_lines[i][correspondence];
       const Vector2f point_projected = line.Projection(point);
-      DrawLine(point, point_projected, kLtfCorrespondenceColor,
-              &display_message_);
-      if (kUseWebViz) visualization::DrawLine(point, point_projected, kLtfCorrespondenceColor,
+      visualization::DrawLine(point, point_projected, kLtfCorrespondenceColor,
               visualization_msg_);
     }
   }
@@ -1071,13 +1047,10 @@ void DrawObservations(
         const Vector2f normal = pose_rotation * normal_cloud[j];
         // const Vector2f tangent = 0.05 * Perp(normal);
         const Vector2f dir = 0.05 * normal;
-        DrawLine<float>(
-            point + dir, point - dir, 0x7FFF4000, &display_message_);
-        if (kUseWebViz) visualization::DrawLine(
+        visualization::DrawLine(
             point + dir, point - dir, 0x7FFF4000, visualization_msg_);
       }
-      DrawPoint(point, point_color, &display_message_);
-      if (kUseWebViz) visualization::DrawPoint(point, point_color, visualization_msg_);
+      visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
   // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
@@ -1094,8 +1067,7 @@ void DrawGradients(
     const Vector2f pose_location(poses[j], poses[j + 1]);
     const Rotation2Df pose_rotation(poses[j + 2]);
     const Vector2f p2 = pose_location - location_gradient;
-    DrawLine(pose_location, p2, 0xFF0000FF, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(pose_location, p2, 0xFF0000FF, visualization_msg_);
+    visualization::DrawLine(pose_location, p2, 0xFF0000FF, visualization_msg_);
   }
 }
 
@@ -1112,8 +1084,7 @@ void DrawPoseCovariance(const Vector2f& pose, const Matrix2f& covariance) {
                       sin(a + kDTheta) * sqrt(eigenvalues(1)));
     const Vector2f v1_global = eigenvectors.transpose() * v1 + pose;
     const Vector2f v2_global = eigenvectors.transpose() * v2 + pose;
-    DrawLine(v1_global, v2_global, kPoseCovarianceColor, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(v1_global, v2_global, kPoseCovarianceColor, visualization_msg_);
+    visualization::DrawLine(v1_global, v2_global, kPoseCovarianceColor, visualization_msg_);
   }
 }
 
@@ -1127,16 +1098,12 @@ void DrawPoses(const size_t start_pose, const size_t end_pose,
   for (size_t i = start_pose; i <= end_pose; ++i) {
     const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     if (i > start_pose) {
-      DrawLine(pose_location, pose_location_last, kTrajectoryColor,
-               &display_message_);
-      if (kUseWebViz) visualization::DrawLine(pose_location, pose_location_last, kTrajectoryColor, visualization_msg_);
+      visualization::DrawLine(pose_location, pose_location_last, kTrajectoryColor, visualization_msg_);
       const Vector2f odometry =
           Rotation2Df(pose_angle_last) *
           Rotation2Df(-odometry_poses[i - 1].angle) *
           (odometry_poses[i].translation - odometry_poses[i - 1].translation);
-      DrawLine(pose_location, Vector2f(pose_location_last + odometry),
-               kOdometryColor, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(pose_location, Vector2f(pose_location_last + odometry), kOdometryColor, visualization_msg_);
+      visualization::DrawLine(pose_location, Vector2f(pose_location_last + odometry), kOdometryColor, visualization_msg_);
       if (kDrawCovariances && valid_covariances) {
         DrawPoseCovariance(pose_location, covariances[i]);
       }
@@ -1154,9 +1121,7 @@ void DrawRayCasts(
   for (size_t i = start_pose; i <= end_pose; ++i) {
     const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
     for (size_t j = 0; j < ray_cast_lines[i].size(); ++j) {
-      DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
-               colour, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
+      visualization::DrawLine(ray_cast_lines[i][j].p0, ray_cast_lines[i][j].p1,
                colour, visualization_msg_);
       /*
       DrawLine(pose_location, ray_cast_lines[i][j].P0(),
@@ -1173,11 +1138,10 @@ void DrawFactor(const Vector2f& p0,
                 const uint32_t edge_color,
                 const uint32_t factor_node_color,
                 const uint32_t variable_node_color) {
-  DrawPoint(p0, variable_node_color, &display_message_);
-  DrawPoint(p1, variable_node_color, &display_message_);
-  DrawPoint(Vector2f(0.5 * (p0 + p1)), factor_node_color, &display_message_);
-  DrawLine(p0, p1, edge_color, &display_message_);
-  if (kUseWebViz) visualization::DrawLine(p0, p1, edge_color, visualization_msg_);
+  visualization::DrawPoint(p0, variable_node_color, visualization_msg_);
+  visualization::DrawPoint(p1, variable_node_color, visualization_msg_);
+  visualization::DrawPoint(Vector2f(0.5 * (p0 + p1)), factor_node_color, visualization_msg_);
+  visualization::DrawLine(p0, p1, edge_color, visualization_msg_);
 }
 
 void DrawFactorGraph(
@@ -1308,7 +1272,7 @@ void SaveSensorErrors(
   ScopedFile fid("results/sensor_errors.txt", "w");
   printf("Saving sensor errors... ");
   fflush(stdout);
-  ClearDrawingMessage(&display_message_);
+  visualization::ClearVisualizationMsg(visualization_msg_);
   const Vector2f laser_loc(
       localization_options_.sensor_offset.x(),
       localization_options_.sensor_offset.y());
@@ -1333,10 +1297,9 @@ void SaveSensorErrors(
           not_expected) {
         continue;
       }
-      DrawPoint(expected_point, 0xFFFF0000, &display_message_);
-      DrawPoint(observed_point, 0x4FFF7700, &display_message_);
-      DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, &display_message_);
-      if (kUseWebViz) visualization::DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, visualization_msg_);
+      visualization::DrawPoint(expected_point, 0xFFFF0000, visualization_msg_);
+      visualization::DrawPoint(observed_point, 0x4FFF7700, visualization_msg_);
+      visualization::DrawLine(expected_point, pose_loc_g, 0x4FC0C0C0, visualization_msg_);
       const float angle = atan2(point_cloud_g[j].y(), point_cloud_g[j].x());
       fprintf(fid(), "%.4f %.4f %.4f\n", angle, expected_range, observed_range);
     }
@@ -1429,63 +1392,6 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
   last_laser_scan_ = laser_message;
 }
 
-void SaveOrebroLoggedPoses(const vector<Pose2Df>& logged_poses,
-                     const vector<int>& logged_episode_lengths,
-                     const vector<vector<float> >& laser_scans,
-                     const string& bag_file) {
-  static const uint32_t kLoggedPosesColor = 0xFF00A80E;
-
-  // Display a trace of the logged poses.
-  ClearDrawingMessage(&display_message_);
-  for (size_t i = 1; i < logged_poses.size(); ++i) {
-    DrawLine(logged_poses[i - 1].translation, logged_poses[i].translation,
-             kLoggedPosesColor, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(logged_poses[i - 1].translation, logged_poses[i].translation, kLoggedPosesColor, visualization_msg_);
-  }
-  PublishDisplay();
-
-  // Save bmap (Orebro format) localization log.
-  if (false) {
-    CHECK_EQ(laser_scans.size(), logged_poses.size());
-    ScopedFile fid(bag_file + ".bmap", "w");
-    fprintf(fid(), "%% Non-Markov Localization results\n");
-    fprintf(fid(), "%% Format: TimeMs x y phi laserScanReadings\n");
-    fprintf(fid(), "%% 181 # nr of samples per laser scan\n");
-    fprintf(fid(), "V2\n");
-    for (size_t i = 0; i < logged_poses.size(); ++i) {
-      const Pose2Df& pose = logged_poses[i];
-      fprintf(fid(), "0 %f %f %f",
-              pose.translation.x() * 100.0, pose.translation.y() * 100.0,
-              pose.angle);
-      const vector<float>& scan = laser_scans[i];
-      for (size_t j = 0; j < scan.size(); ++j) {
-        fprintf(fid(), " %f", scan[j] * 100.0);
-      }
-      fprintf(fid(), "\n");
-    }
-  }
-
-  // Save the logged poses.
-  {
-    ScopedFile fid(bag_file + ".poses", "w");
-    for (size_t i = 0; i < logged_poses.size(); ++i) {
-      const Pose2Df& pose = logged_poses[i];
-      fprintf(fid(), "%f, %f, %f\n",
-              pose.translation.x(), pose.translation.y(),
-              pose.angle);
-    }
-  }
-
-  // Save the episode lengths.
-  {
-    ScopedFile fid(bag_file + ".episodes", "w");
-    for (size_t i = 0; i < logged_episode_lengths.size(); ++i) {
-      fprintf(fid(), "%d\n", logged_episode_lengths[i]);
-    }
-  }
-  Sleep(1.0);
-}
-
 // GUI interaction state enumeration.
 enum GuiInteractionState {
   kGuiStateNone = 0,
@@ -1549,7 +1455,7 @@ void SRLVisualize(
     const NormalCloudf& normal_cloud,
     const vector<vector_localization::LTSConstraint*>& constraints) {
   const size_t num_samples = poses.size() / 3;
-  ClearDrawingMessage(&display_message_);
+  visualization::ClearVisualizationMsg(visualization_msg_);
   double max_weight = 0.0;
   size_t best_pose = 0;
   vector<double> pose_weights(num_samples);
@@ -1573,15 +1479,13 @@ void SRLVisualize(
     const double alpha = max(0.05, pose_weights[i] / max_weight);
     const uint32_t alpha_channel =
         (static_cast<uint32_t>(255.0 * alpha) << 24) & 0xFF000000;
-    DrawPoint(line_p0, alpha_channel | 0xFF0000, &display_message_);
-    DrawLine(line_p0, line_p1, alpha_channel | 0x3F3F3F, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(line_p0, line_p1, alpha_channel | 0x3F3F3F, visualization_msg_);
+    visualization::DrawPoint(line_p0, alpha_channel | 0xFF0000, visualization_msg_);
+    visualization::DrawLine(line_p0, line_p1, alpha_channel | 0x3F3F3F, visualization_msg_);
     if (pose_weights[i] == max_weight) {
       for (size_t j = 0; j < point_cloud_e.size(); ++j) {
         const Vector2f point = pose_transform * point_cloud_e[j];
-        DrawPoint(point, 0xFFFF7700, &display_message_);
-        DrawLine(point, line_p0, 0x1FFF7700, &display_message_);
-        if (kUseWebViz) visualization::DrawLine(point, line_p0, 0x1FFF7700, visualization_msg_);
+        visualization::DrawPoint(point, 0xFFFF7700, visualization_msg_);
+        visualization::DrawLine(point, line_p0, 0x1FFF7700, visualization_msg_);
       }
     }
   }
@@ -1594,8 +1498,7 @@ void SRLVisualize(
     const Vector2f p = best_pose_transform * constraint.point;
     const float offset = p.dot(constraint.line_normal) + constraint.line_offset;
     const Vector2f p_line = p - constraint.line_normal * offset;
-    DrawLine(p, p_line, 0xFF00FF00, &display_message_);
-    if (kUseWebViz) visualization::DrawLine(p, p_line, 0xFF00FF00, visualization_msg_);
+    visualization::DrawLine(p, p_line, 0xFF00FF00, visualization_msg_);
   }
   PublishDisplay();
 }
@@ -1986,13 +1889,10 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   ros::NodeHandle ros_node;
   InitializeMessages();
-  display_publisher_ =
-      ros_node.advertise<enml::LidarDisplayMsg>(
-      "Cobot/VectorLocalization/Gui",1,true);
   localization_publisher_ =
       ros_node.advertise<amrl_msgs::Localization2DMsg>(
       "localization", 1, true);
-  if (kUseWebViz) {
+  {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(
         "visualization", 1, true);
