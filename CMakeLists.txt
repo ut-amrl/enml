@@ -23,15 +23,12 @@ rosbuild_init()
 SET(ROS_BUILD_STATIC_LIBS true)
 SET(ROS_BUILD_SHARED_LIBS false)
 
-rosbuild_genmsg()
-
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 FIND_PACKAGE(Lua51 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 FIND_PACKAGE(Ceres REQUIRED)
-
 
 INCLUDE_DIRECTORIES(src/shared)
 ADD_SUBDIRECTORY(src/shared)
@@ -44,12 +41,11 @@ INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
 
 SET(libs roslib roscpp ncurses popt pthread glut boost_system
-    ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${LUA_LIBRARIES} rt
-    ${BUILD_SPECIFIC_LIBRARIES} glog rosbag X11 amrl-shared-lib)
+    ${LUA_LIBRARIES} rt glog rosbag amrl_shared_lib
+    ${BUILD_SPECIFIC_LIBRARIES})
 
 ROSBUILD_ADD_LIBRARY(enml_support_lib
     src/kdtree.cpp
-    src/gui_publisher_helper.cpp
     src/perception_2d.cpp
     src/vector_map/vector_map.cc
     src/visualization/visualization.cc

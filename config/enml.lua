@@ -74,11 +74,51 @@ enml = {
 
 if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   -- On the cobblestone next to the GDC door closest to the lab, 
+  -- ********************************************************
+  -- DEFAULT STARTING LOCATION
+  -- On the cobblestone next to the GDC door closest to the lab,
   -- right next to grass, on the side with the lamp post and facing Speedway.
   enml.map_name = "UT_Campus";
   enml.starting_loc_x = 114.067214966;
   enml.starting_loc_y = -251.863693237;
   enml.starting_angle = deg2rad(-175);
+  -- ********************************************************
+
+  -- 2020-06-03-18-51-39.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 131;
+  -- enml.starting_loc_y = -245;
+  -- enml.starting_angle = deg2rad(-85);
+
+  -- -- 2020-06-25-17-34-30.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 4;
+  -- enml.starting_loc_y = -29;
+  -- enml.starting_angle = deg2rad(-122);
+
+  -- -- 2020-06-03-18-51-39.bag 160 seconds in
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 67.538;
+  -- enml.starting_loc_y = -96.67;
+  -- enml.starting_angle = deg2rad(-89);
+
+  -- -- 2020-06-03-18-51-39.bag 341.3 seconds in
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = -131.66;
+  -- enml.starting_loc_y = -133.88;
+  -- enml.starting_angle = deg2rad(-172);
+
+  -- -- 2020-06-25-17-49-13.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = -117.66;
+  -- enml.starting_loc_y = -340.72;
+  -- enml.starting_angle = deg2rad(-82);
+
+  -- 2020-06-18-17-54-48.bag
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 132;
+  -- enml.starting_loc_y = -247.5;
+  -- enml.starting_angle = deg2rad(95);
 
   -- 2020-06-03-18-51-39.bag
   -- enml.map_name = "UT_Campus";
@@ -154,8 +194,8 @@ if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 5;
-  enml.max_solver_iterations = 10;
+  enml.max_history = 10;
+  enml.max_solver_iterations = 15;
   enml.num_repeat_iterations = 1;
   enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
