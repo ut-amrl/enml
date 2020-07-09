@@ -102,6 +102,8 @@ using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
 
+DEFINE_string(robot_config, "config/robot.lua", "Robot config to use");
+
 namespace {
 // Name of the topic that scan data is published on.
 CONFIG_STRING(scan_topic, "RobotConfig.scan_topic");
@@ -114,7 +116,7 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
 config_reader::ConfigReader config_reader_({
   "config/common.lua",
-  "config/robot.lua",
+  FLAGS_robot_config,
   "config/enml.lua"
 });
 
@@ -408,7 +410,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
       "config/common.lua",
-      "config/robot.lua",
+      FLAGS_robot_config,
       "config/enml.lua"});
   options->minimum_node_translation = CONFIG_min_translation;
   options->minimum_node_rotation = CONFIG_min_rotation;

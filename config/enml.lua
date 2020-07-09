@@ -72,7 +72,7 @@ enml = {
   limit_history = false;
 };
 
-if RobotConfig.name=="ut-jackal" then
+if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   -- On the cobblestone next to the GDC door closest to the lab, 
   -- right next to grass, on the side with the lamp post and facing Speedway.
   enml.map_name = "UT_Campus";
