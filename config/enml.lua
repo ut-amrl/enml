@@ -331,6 +331,13 @@ if RobotConfig.name=="Cobot4" then
   enml.num_threads = 4;
 end
 
+if RobotConfig.name=="airsim" then
+  enml.map_name = "Airsim-Neighborhood";
+  enml.starting_loc_x = 0;
+  enml.starting_loc_y = 0;
+  enml.starting_angle = deg2rad(0.0);
+end
+
 -- Parameters for probabilistic object maps.
 ProbabilisticObjectMaps = {
   object_distance_threshold = 0.03;
