@@ -97,8 +97,6 @@ using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
 
-DEFINE_string(robot_config, "config/robot.lua", "Robot config to use");
-
 namespace {
 // Name of the topic that scan data is published on.
 CONFIG_STRING(scan_topic, "RobotConfig.scan_topic");
@@ -109,11 +107,8 @@ CONFIG_STRING(odom_topic, "RobotConfig.odometry_topic");
 // Name of the topic that location reset commands are published on.
 CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
-config_reader::ConfigReader config_reader_({
-  "config/common.lua",
-  FLAGS_robot_config,
-  "config/enml.lua"
-});
+// The name of the robot config file.
+string robot_config_file_ = "config/robot.lua";
 
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
@@ -393,7 +388,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
       "config/common.lua",
-      FLAGS_robot_config,
+      robot_config_file_,
       "config/enml.lua"});
   options->minimum_node_translation = CONFIG_min_translation;
   options->minimum_node_rotation = CONFIG_min_rotation;
@@ -1836,6 +1831,7 @@ int main(int argc, char** argv) {
   double time_skip = 0;
   bool unique_node_name = false;
   bool return_initial_poses = false;
+  char* robot_config_opt = NULL;
 
   static struct poptOption options[] = {
     { "debug" , 'd', POPT_ARG_INT, &debug_level_, 1, "Debug level", "NUM" },
@@ -1865,6 +1861,8 @@ int main(int argc, char** argv) {
         "Save LTFs", "NONE"},
     { "quiet", 'q', POPT_ARG_NONE, &quiet_, 0,
         "Quiet", "NONE"},
+    { "robot_config", 'r', POPT_ARG_STRING, &robot_config_opt, 0,
+        "Robot config file", "STRING"},
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
@@ -1873,6 +1871,10 @@ int main(int argc, char** argv) {
   while((c = popt.getNextOpt()) >= 0){
   }
 
+  if (robot_config_opt) {
+    robot_config_file_ = robot_config_opt;
+    printf("Using %s for robot config.\n", robot_config_file_.c_str());
+  }
   CHECK(LoadConfiguration(&localization_options_));
 
   // if (bag_file == NULL) unique_node_name = true;
