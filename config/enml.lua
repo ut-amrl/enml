@@ -84,34 +84,34 @@ if RobotConfig.name=="ut-jackal" then
   -- ********************************************************
 
   -- 2020-06-03-18-51-39.bag
-  enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 131;
-  enml.starting_loc_y = -245;
-  enml.starting_angle = deg2rad(-85);
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 131;
+  -- enml.starting_loc_y = -245;
+  -- enml.starting_angle = deg2rad(-85);
 
   -- 2020-06-25-17-34-30.bag
-  enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 4;
-  enml.starting_loc_y = -29;
-  enml.starting_angle = deg2rad(-122);
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 4;
+  -- enml.starting_loc_y = -29;
+  -- enml.starting_angle = deg2rad(-122);
 
-  -- 2020-06-03-18-51-39.bag 160 seconds in
-  enml.map_name = "UT_Campus";
-  enml.starting_loc_x = 67.538;
-  enml.starting_loc_y = -96.67;
-  enml.starting_angle = deg2rad(-89);
+  -- 2020-06-25-17-34-30.bag 160 seconds in
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = 67.538;
+  -- enml.starting_loc_y = -96.67;
+  -- enml.starting_angle = deg2rad(-89);
 
-  -- 2020-06-03-18-51-39.bag 341.3 seconds in
-  enml.map_name = "UT_Campus";
-  enml.starting_loc_x = -131.66;
-  enml.starting_loc_y = -133.88;
-  enml.starting_angle = deg2rad(-172);
+  -- 2020-06-25-17-34-30.bag 341.3 seconds in
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = -131.66;
+  -- enml.starting_loc_y = -133.88;
+  -- enml.starting_angle = deg2rad(-172);
 
   -- 2020-06-25-17-49-13.bag
-  enml.map_name = "UT_Campus";
-  enml.starting_loc_x = -117.66;
-  enml.starting_loc_y = -340.72;
-  enml.starting_angle = deg2rad(-82);
+  -- enml.map_name = "UT_Campus";
+  -- enml.starting_loc_x = -117.66;
+  -- enml.starting_loc_y = -340.72;
+  -- enml.starting_angle = deg2rad(-82);
 
   -- 2020-06-18-17-54-48.bag
   -- enml.map_name = "UT_Campus";
