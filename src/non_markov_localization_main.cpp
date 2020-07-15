@@ -96,6 +96,7 @@ using namespace geometry;
 using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
+std::string enml_pkg_path = ros::package::getPath("enml");
 
 namespace {
 // Name of the topic that scan data is published on.
@@ -108,7 +109,7 @@ CONFIG_STRING(odom_topic, "RobotConfig.odometry_topic");
 CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
 // The name of the robot config file.
-string robot_config_file_ = "config/robot.lua";
+string robot_config_file_ = enml_pkg_path + "/config/robot.lua";
 
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
@@ -145,7 +146,7 @@ float kMaxOdometryDeltaAngle = DegToRad(15.0);
 pthread_mutex_t relocalization_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
 // The directory where all the maps are stored.
-static const string kMapsDirectory("maps");
+static const string kMapsDirectory(enml_pkg_path+"/maps");
 
 // Index of test set. This will determine which file the results of the test are
 // saved to.
@@ -387,9 +388,9 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(max_update_period);
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
-      "config/common.lua",
+      enml_pkg_path + "/config/common.lua",
       robot_config_file_,
-      "config/enml.lua"});
+      enml_pkg_path + "/config/enml.lua"});
   options->minimum_node_translation = CONFIG_min_translation;
   options->minimum_node_rotation = CONFIG_min_rotation;
   options->max_update_period = CONFIG_max_update_period;
