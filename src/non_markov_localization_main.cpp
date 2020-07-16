@@ -96,7 +96,7 @@ using namespace geometry;
 using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
-std::string enml_pkg_path = ros::package::getPath("enml");
+//std::string enml_pkg_path = ros::package::getPath("enml");
 
 namespace {
 // Name of the topic that scan data is published on.
@@ -108,8 +108,10 @@ CONFIG_STRING(odom_topic, "RobotConfig.odometry_topic");
 // Name of the topic that location reset commands are published on.
 CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
+string config_path_ = ".";
+
 // The name of the robot config file.
-string robot_config_file_ = enml_pkg_path + "/config/robot.lua";
+string robot_config_file_ = config_path_ + "/config/robot.lua";
 
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
@@ -146,7 +148,7 @@ float kMaxOdometryDeltaAngle = DegToRad(15.0);
 pthread_mutex_t relocalization_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
 // The directory where all the maps are stored.
-static const string kMapsDirectory(enml_pkg_path+"/maps");
+string kMapsDirectory(config_path_+"/maps");
 
 // Index of test set. This will determine which file the results of the test are
 // saved to.
@@ -183,7 +185,7 @@ ros::Publisher localization_publisher_;
 NonMarkovLocalization::LocalizationOptions localization_options_;
 
 // Main class instance for Non-Markov Localization.
-NonMarkovLocalization localization_(kMapsDirectory);
+NonMarkovLocalization* localization_; //(kMapsDirectory);
 
 // The last observed laser scan, used for auto localization.
 sensor_msgs::LaserScan last_laser_scan_;
@@ -260,13 +262,13 @@ void PublishLocation(
 }
 
 void PublishLocation() {
-  Pose2Df pose = localization_.GetLatestPose();
-  const string map = localization_.GetCurrentMapName();
+  Pose2Df pose = localization_->GetLatestPose();
+  const string map = localization_->GetCurrentMapName();
   PublishLocation(map, pose.translation.x(), pose.translation.y(), pose.angle);
 }
 
 void PublishTrace() {
-  Pose2Df latest_pose = localization_.GetLatestPose();
+  Pose2Df latest_pose = localization_->GetLatestPose();
   static vector<Vector2f> trace;
   static Vector2f lastLoc;
   static bool initialized = false;
@@ -388,9 +390,9 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_FLOAT_CONFIG(max_update_period);
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
-      enml_pkg_path + "/config/common.lua",
+      config_path_ + "/config/common.lua",
       robot_config_file_,
-      enml_pkg_path + "/config/enml.lua"});
+      config_path_ + "/config/enml.lua"});
   options->minimum_node_translation = CONFIG_min_translation;
   options->minimum_node_rotation = CONFIG_min_rotation;
   options->max_update_period = CONFIG_max_update_period;
@@ -570,7 +572,7 @@ void SaveEpisodeStats(FILE* fid) {
   vector<uint64_t> pose_ids;
   vector<vector<NonMarkovLocalization::ObservationType> > observation_classes;
   Pose2Df latest_pose;
-  if (!localization_.GetNodeData(
+  if (!localization_->GetNodeData(
           &poses,
           &pose_ids,
           &point_clouds,
@@ -582,7 +584,7 @@ void SaveEpisodeStats(FILE* fid) {
      ) {
     return;
   }
-  const string map_name = localization_.GetCurrentMapName();
+  const string map_name = localization_->GetCurrentMapName();
   int num_ltfs = 0;
   int num_stfs = 0;
   int num_dfs = 0;
@@ -953,7 +955,7 @@ void DrawLtfs(
         localization_options_.sensor_offset.x(),
       localization_options_.sensor_offset.y());
     static VectorMap map_;
-    map_.Load(localization_.GetCurrentMapName());
+    map_.Load(localization_->GetCurrentMapName());
     for (size_t i = start_pose; i <= end_pose; ++i) {
     // for (size_t i = start_pose; i <= start_pose; ++i) {
       const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
@@ -1206,7 +1208,7 @@ void CorrespondenceCallback(
   CHECK_EQ(point_clouds.size(), point_line_correspondences.size());
   ClearDisplay();
   if (!run_) {
-    localization_.Terminate();
+    localization_->Terminate();
   }
   if (debug_level_ >= 1) {
     PublishTrace();
@@ -1335,7 +1337,7 @@ void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
                     &(p_delta.y()),
                     &(d_theta));
   }
-  localization_.OdometryUpdate(
+  localization_->OdometryUpdate(
       kOdometryTranslationScale * p_delta.x(),
       kOdometryTranslationScale * p_delta.y(), d_theta);
   PublishLocation();
@@ -1385,7 +1387,7 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     if (debug_level_ > 1) {
       printf("Sensor update, t=%f\n", laser_message.header.stamp.toSec());
     }
-    localization_.SensorUpdate(point_cloud, normal_cloud);
+    localization_->SensorUpdate(point_cloud, normal_cloud);
   }
   last_laser_scan_ = laser_message;
 }
@@ -1459,7 +1461,7 @@ void SRLVisualize(
   vector<double> pose_weights(num_samples);
   for (size_t i = 0; i < num_samples; ++i) {
     const Pose2Df pose(poses[3 * i + 2], poses[3 * i + 0], poses[3 * i + 1]);
-    pose_weights[i] = localization_.ObservationLikelihood(
+    pose_weights[i] = localization_->ObservationLikelihood(
         pose, point_cloud_e, normal_cloud);
     if (pose_weights[i] > max_weight) {
       max_weight = pose_weights[i];
@@ -1528,7 +1530,7 @@ void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
   static const float kAngularStdDev = DegToRad(20.0);
   printf("Running SRL...");
   fflush(stdout);
-  localization_.SensorResettingResample(
+  localization_->SensorResettingResample(
       point_cloud, normal_cloud, kNumSamples, kRadialStdDev,
       kTangentialStdDev, kAngularStdDev, &SRLVisualize, &poses, &pose_weights,
       &constraints);
@@ -1584,8 +1586,8 @@ void PlayBagFile(const string& bag_file,
   localization_options_.log_poses = true;
   localization_options_.CorrespondenceCallback =
       ((debug_level_ > 0) ? CorrespondenceCallback : NULL);
-  localization_.SetOptions(localization_options_);
-  localization_.Initialize(Pose2Df(kStartingAngle, kStartingLocation),
+  localization_->SetOptions(localization_options_);
+  localization_->Initialize(Pose2Df(kStartingAngle, kStartingLocation),
                            kMapName);
 
   rosbag::Bag bag;
@@ -1630,7 +1632,7 @@ void PlayBagFile(const string& bag_file,
       const float ss = fmod(elapsed_time, 60.0);
       if (false) {
         printf("\r%02d:%02d:%04.1f (%.1f) Lost:%.3f",
-              hh, mm, ss, elapsed_time, localization_.GetLostMetric());
+              hh, mm, ss, elapsed_time, localization_->GetLostMetric());
       }
       printf("\r%02d:%02d:%04.1f (%.1f) Pose:%8.3f,%8.3f,%6.2f\u00b0",
              hh, mm, ss, elapsed_time,
@@ -1677,12 +1679,12 @@ void PlayBagFile(const string& bag_file,
           message.getTopic() == CONFIG_scan_topic) {
         ++num_laser_scans;
         LaserCallback(*laser_message);
-        while(localization_.RunningSolver()) {
+        while(localization_->RunningSolver()) {
           Sleep(0.01);
         }
         last_laser_scan = *laser_message;
-        last_laser_pose = localization_.GetLatestPose();
-        pose_trajectory.push_back(localization_.GetLatestPose());
+        last_laser_pose = localization_->GetLatestPose();
+        pose_trajectory.push_back(localization_->GetLatestPose());
         PublishLocation();
         continue;
       }
@@ -1716,15 +1718,15 @@ void PlayBagFile(const string& bag_file,
         }
         const Pose2Df init_pose(init_angle, init_location.x(),
                                 init_location.y());
-        localization_.Initialize(init_pose, init_map);
+        localization_->Initialize(init_pose, init_map);
       }
     }
   }
-  localization_.Finalize();
+  localization_->Finalize();
   const double process_time = GetMonotonicTime() - t_start;
   const double bag_duration = bag_time - bag_time_start;
-  const vector<Pose2Df> logged_poses = localization_.GetLoggedPoses();
-  const vector<int> episode_lengths = localization_.GetLoggedEpisodeLengths();
+  const vector<Pose2Df> logged_poses = localization_->GetLoggedPoses();
+  const vector<int> episode_lengths = localization_->GetLoggedEpisodeLengths();
   printf("Done in %.3fs, bag time %.3fs (%.3fx).\n",
         process_time, bag_duration, bag_duration / process_time);
   printf("%d laser scans, %lu logged poses\n",
@@ -1753,7 +1755,7 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
     printf("Initialize %s %f,%f %f\u00b0\n",
         msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
   }
-  localization_.Initialize(
+  localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
   localization_publisher_.publish(msg);
 }
@@ -1764,8 +1766,8 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   localization_options_.log_poses = true;
   localization_options_.CorrespondenceCallback =
       ((debug_level_ > 0) ? CorrespondenceCallback : NULL);
-  localization_.SetOptions(localization_options_);
-  localization_.Initialize(Pose2Df(kStartingAngle, kStartingLocation),
+  localization_->SetOptions(localization_options_);
+  localization_->Initialize(Pose2Df(kStartingAngle, kStartingLocation),
                            kMapName);
 
   Subscriber laser_subscriber =
@@ -1833,6 +1835,7 @@ int main(int argc, char** argv) {
   bool unique_node_name = false;
   bool return_initial_poses = false;
   char* robot_config_opt = NULL;
+  char* config_path_opt = NULL;
 
   static struct poptOption options[] = {
     { "debug" , 'd', POPT_ARG_INT, &debug_level_, 1, "Debug level", "NUM" },
@@ -1864,7 +1867,9 @@ int main(int argc, char** argv) {
         "Quiet", "NONE"},
     { "robot_config", 'r', POPT_ARG_STRING, &robot_config_opt, 0,
         "Robot config file", "STRING"},
-    POPT_AUTOHELP
+    { "config_path", 'r', POPT_ARG_STRING, &config_path_opt, 0,
+        "Common config directory", "STRING"},
+POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
   POpt popt(NULL,argc,(const char**)argv,options,0);
@@ -1872,10 +1877,18 @@ int main(int argc, char** argv) {
   while((c = popt.getNextOpt()) >= 0){
   }
 
+  if (config_path_opt) {
+    config_path_ = config_path_opt;
+    // Update path to robot.lua and maps
+    robot_config_file_ = config_path_ + "/config/robot.lua";
+    kMapsDirectory = config_path_+"/maps";
+    printf("Using %s for config directory path.\n", config_path_.c_str());
+  }
   if (robot_config_opt) {
     robot_config_file_ = robot_config_opt;
     printf("Using %s for robot config.\n", robot_config_file_.c_str());
   }
+  localization_ = new NonMarkovLocalization(kMapsDirectory);
   CHECK(LoadConfiguration(&localization_options_));
 
   // if (bag_file == NULL) unique_node_name = true;
