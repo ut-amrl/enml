@@ -74,7 +74,7 @@ void ProcessBagFile(const string& in_file,
   out_bag.open(out_file.c_str(), rosbag::bagmode::Write);
 
   bool written_init = false;
-  for(rosbag::MessageInstance const m : rosbag::View(in_bag)) {
+  for(rosbag::MessageInstance const& m : rosbag::View(in_bag)) {
     if (!written_init) {
       const auto init_msg = InitMsg(x, y, theta, m.getTime());
       out_bag.write("/initialpose", m.getTime(), init_msg);
