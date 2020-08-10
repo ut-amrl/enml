@@ -84,6 +84,13 @@ if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   enml.starting_angle = deg2rad(-175);
   -- ********************************************************
 
+  -- (1) ut-tower-pond_2020-08-07-18-43-49.bag
+  -- (2) ut-tower-pond-2_2020-08-07-19-05-01.bag
+  -- enml.map_name = "UT_Campus"
+  -- enml.starting_loc_x = -116.762;
+  -- enml.starting_loc_y = -115.876;
+  -- enml.starting_angle = deg2rad(-147)
+
   -- ut-ahg-tower_2020-07-24-12-49-41.bag
   -- enml.map_name = "UT_Campus"
   -- enml.starting_loc_x = -3;
