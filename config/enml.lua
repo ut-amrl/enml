@@ -72,6 +72,19 @@ enml = {
   limit_history = false;
 };
 
+
+if RobotConfig.name=="laikago_gazebo"then
+  -- On the cobblestone next to the GDC door closest to the lab,
+  -- ********************************************************
+  -- DEFAULT STARTING LOCATION
+  -- On the cobblestone next to the GDC door closest to the lab,
+  -- right next to grass, on the side with the lamp post and facing Speedway.
+  enml.map_name = "AHG_Apartment";
+  enml.starting_loc_x = 0.0;
+  enml.starting_loc_y = 0.0;
+  enml.starting_angle = 3.4;
+
+
 if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
@@ -82,6 +95,25 @@ if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   enml.starting_loc_x = 114.067214966;
   enml.starting_loc_y = -251.863693237;
   enml.starting_angle = deg2rad(-175);
+
+  -- VLP16 Sensor parameters.
+  enml.laser_std_dev = 0.01;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 100;
+  enml.max_normal_point_distance = 0.75;
+  enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
+  enml.num_skip_readings = 1;
+
+  -- MLE Optimization parameters.
+  enml.pose_increment = 1;
+  enml.max_history = 10;
+  enml.max_solver_iterations = 15;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 3;
+  enml.return_jacobian = false;
+  enml.num_threads = 24;
+  enml.limit_history = true;
+end
   -- ********************************************************
 
   -- (1) ut-tower-pond_2020-08-07-18-43-49.bag
