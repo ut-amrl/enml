@@ -73,7 +73,7 @@ enml = {
 };
 
 
-if RobotConfig.name=="laikago_gazebo"then
+if RobotConfig.name=="laikago_gazebo" then
   -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
   -- DEFAULT STARTING LOCATION
@@ -83,9 +83,9 @@ if RobotConfig.name=="laikago_gazebo"then
   enml.starting_loc_x = 0.0;
   enml.starting_loc_y = 0.0;
   enml.starting_angle = 3.4;
+end
 
-
-if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
+if RobotConfig.name=="ut-jackal" then
   -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
   -- DEFAULT STARTING LOCATION
@@ -113,7 +113,6 @@ if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   enml.return_jacobian = false;
   enml.num_threads = 24;
   enml.limit_history = true;
-end
   -- ********************************************************
 
   -- (1) ut-tower-pond_2020-08-07-18-43-49.bag
