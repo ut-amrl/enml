@@ -84,6 +84,114 @@ if RobotConfig.name=="laikago_gazebo"then
   enml.starting_loc_y = 0.0;
   enml.starting_angle = 3.4;
 
+    -- -- Odometry parameters.
+  enml.min_rotation = deg2rad(5.0);
+  enml.min_translation = 0.25;
+
+  -- VLP16 Sensor parameters.
+  enml.laser_std_dev = 0.01;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 100;
+  enml.max_normal_point_distance = 0.75;
+  enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
+  enml.num_skip_readings = 1;
+
+  -- Parameters for Odometry constraints.
+  enml.max_update_period = 0.5;
+  enml.odometry_radial_stddev_rate = 0.1;
+  enml.odometry_tangential_stddev_rate = 0.1;
+  enml.odometry_angular_stddev_rate = 0.5;
+  enml.odometry_translation_min_stddev = 0.001;
+  enml.odometry_translation_max_stddev = 10.5;
+  enml.odometry_rotation_min_stddev = deg2rad(10.0);
+  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
+
+  -- Parameters for STF constraints.
+  enml.point_match_threshold = 0.25;
+  enml.max_stf_angle_error = deg2rad(35.0);
+  enml.max_correspondences_per_point = 10;
+  enml.point_correlation_factor = 1.0 / 5.0;
+
+  -- Parameters for LTF constraints.
+  enml.map_huber_loss = 0.25;
+  enml.max_point_to_line_distance = 0.7;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 5.0;
+
+  -- Parameters for visibility constraints.
+  enml.use_visibility_constraints = false;
+  enml.visibility_correlation_factor = 0.02;
+
+  -- MLE Optimization parameters.
+  enml.pose_increment = 1;
+  enml.max_history = 10;
+  enml.max_solver_iterations = 15;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 3;
+  enml.return_jacobian = false;
+  enml.num_threads = 24;
+  enml.limit_history = true;
+end
+
+if RobotConfig.name=="a1_gazebo"then
+  -- On the cobblestone next to the GDC door closest to the lab,
+  -- ********************************************************
+  -- DEFAULT STARTING LOCATION
+  -- On the cobblestone next to the GDC door closest to the lab,
+  -- right next to grass, on the side with the lamp post and facing Speedway.
+  enml.map_name = "AHG_Apartment";
+  enml.starting_loc_x = 0.0;
+  enml.starting_loc_y = 0.0;
+  enml.starting_angle = 3.4;
+
+    -- -- Odometry parameters.
+  enml.min_rotation = deg2rad(5.0);
+  enml.min_translation = 0.25;
+
+  -- VLP16 Sensor parameters.
+  enml.laser_std_dev = 0.01;
+  enml.min_point_cloud_range = 0.02;
+  enml.max_point_cloud_range = 100;
+  enml.max_normal_point_distance = 0.75;
+  enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
+  enml.num_skip_readings = 1;
+
+  -- Parameters for Odometry constraints.
+  enml.max_update_period = 0.5;
+  enml.odometry_radial_stddev_rate = 0.1;
+  enml.odometry_tangential_stddev_rate = 0.1;
+  enml.odometry_angular_stddev_rate = 0.5;
+  enml.odometry_translation_min_stddev = 0.001;
+  enml.odometry_translation_max_stddev = 10.5;
+  enml.odometry_rotation_min_stddev = deg2rad(10.0);
+  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
+
+  -- Parameters for STF constraints.
+  enml.point_match_threshold = 0.25;
+  enml.max_stf_angle_error = deg2rad(35.0);
+  enml.max_correspondences_per_point = 10;
+  enml.point_correlation_factor = 1.0 / 5.0;
+
+  -- Parameters for LTF constraints.
+  enml.map_huber_loss = 0.25;
+  enml.max_point_to_line_distance = 0.7;
+  enml.max_angle_error = deg2rad(35.0);
+  enml.map_correlation_factor = 1.0 / 5.0;
+
+  -- Parameters for visibility constraints.
+  enml.use_visibility_constraints = false;
+  enml.visibility_correlation_factor = 0.02;
+
+  -- MLE Optimization parameters.
+  enml.pose_increment = 1;
+  enml.max_history = 10;
+  enml.max_solver_iterations = 15;
+  enml.num_repeat_iterations = 1;
+  enml.max_repeat_iterations = 3;
+  enml.return_jacobian = false;
+  enml.num_threads = 24;
+  enml.limit_history = true;
+end
 
 if RobotConfig.name=="ut-jackal" or RobotConfig.name=="smads-ut-jackal" then
   -- On the cobblestone next to the GDC door closest to the lab,
@@ -199,54 +307,7 @@ end
   -- enml.starting_loc_y = 0;
   -- enml.starting_angle = deg2rad(0);
 
-  -- -- Odometry parameters.
-  enml.min_rotation = deg2rad(5.0);
-  enml.min_translation = 0.25;
 
-  -- VLP16 Sensor parameters.
-  enml.laser_std_dev = 0.01;
-  enml.min_point_cloud_range = 0.02;
-  enml.max_point_cloud_range = 100;
-  enml.max_normal_point_distance = 0.75;
-  enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
-  enml.num_skip_readings = 1;
-
-  -- Parameters for Odometry constraints.
-  enml.max_update_period = 0.5;
-  enml.odometry_radial_stddev_rate = 0.1;
-  enml.odometry_tangential_stddev_rate = 0.1;
-  enml.odometry_angular_stddev_rate = 0.5;
-  enml.odometry_translation_min_stddev = 0.001;
-  enml.odometry_translation_max_stddev = 10.5;
-  enml.odometry_rotation_min_stddev = deg2rad(10.0);
-  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
-
-  -- Parameters for STF constraints.
-  enml.point_match_threshold = 0.25;
-  enml.max_stf_angle_error = deg2rad(35.0);
-  enml.max_correspondences_per_point = 10;
-  enml.point_correlation_factor = 1.0 / 5.0;
-
-  -- Parameters for LTF constraints.
-  enml.map_huber_loss = 0.25;
-  enml.max_point_to_line_distance = 0.7;
-  enml.max_angle_error = deg2rad(35.0);
-  enml.map_correlation_factor = 1.0 / 5.0;
-
-  -- Parameters for visibility constraints.
-  enml.use_visibility_constraints = false;
-  enml.visibility_correlation_factor = 0.02;
-
-  -- MLE Optimization parameters.
-  enml.pose_increment = 1;
-  enml.max_history = 10;
-  enml.max_solver_iterations = 15;
-  enml.num_repeat_iterations = 1;
-  enml.max_repeat_iterations = 3;
-  enml.return_jacobian = false;
-  enml.num_threads = 24;
-  enml.limit_history = true;
-end
 
 if RobotConfig.name=="ut-automata" then
   enml.map_name = "Joydeepb-Home";
