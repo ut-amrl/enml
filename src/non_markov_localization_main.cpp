@@ -1833,7 +1833,6 @@ int main(int argc, char** argv) {
   double time_skip = 0;
   bool unique_node_name = false;
   bool return_initial_poses = false;
-  char* robot_config_opt = NULL;
 
 
 
@@ -1868,8 +1867,6 @@ int main(int argc, char** argv) {
         "Save LTFs", "NONE"},
     { "quiet", 'q', POPT_ARG_NONE, &quiet_, 0,
         "Quiet", "NONE"},
-    { "robot_config", 'r', POPT_ARG_STRING, &robot_config_opt, 0,
-        "Robot config file", "STRING"},
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
