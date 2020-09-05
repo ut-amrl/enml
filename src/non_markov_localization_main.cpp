@@ -390,8 +390,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
     std::string(config_dir_) + "/common.lua",
-    std::string(config_dir_) + "/" + std::string(robot_config_),
-    std::string(config_dir_) + "/enml.lua"
+    std::string(config_dir_) + "/" + std::string(robot_config_)
   });
   options->kMinRange = CONFIG_min_point_cloud_range;
   options->kMaxRange = CONFIG_max_point_cloud_range;
