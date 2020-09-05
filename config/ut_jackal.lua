@@ -1,10 +1,8 @@
 RobotConfig = {
-  name = "cobot";
-  scan_topic = "/Cobot/Laser";
-  -- To use Kinect-based ENML, uncomment the following.
-  -- pointcloud_topic = "/Cobot/Kinect/Scan";
+  name = "ut-jackal";
+  scan_topic = "/velodyne_2dscan_high_beams";
   pointcloud_topic = "";
-  odometry_topic = "/Cobot/Odometry";
+  odometry_topic = "/jackal_velocity_controller/odom";
   initialpose_topic = "/initialpose";
 };
 
