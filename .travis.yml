@@ -32,7 +32,7 @@ before_install:
   - sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
   - sudo apt-get update -qq
   - sudo apt-get install dpkg
-  - sudo apt-get install -y ros-melodic-desktop libgtest-dev libeigen3-dev libgoogle-glog-dev cmake build-essential
+  - sudo apt-get install -y ros-noetic-desktop libgtest-dev libeigen3-dev libgoogle-glog-dev cmake build-essential
   - sudo apt-get install python-rosdep python-rosinstall python-rosinstall-generator python-wstool build-essential
   - sudo apt-get install -y liblua5.1-dev
   - sudo apt-get install -y g++ libqt4-dev cmake libpopt-dev
@@ -41,7 +41,7 @@ before_install:
   - sudo apt-get install -y libsuitesparse-dev libblas-dev liblapack-dev
   - sudo apt-get install -y libgoogle-glog-dev libgflags-dev libceres-dev
   - sudo apt-get install -y libtbb-dev libgoogle-perftools-dev libopenmpi-dev
-  - source /opt/ros/melodic/setup.bash
+  - source /opt/ros/noetic/setup.bash
   - sudo rosdep init
   - rosdep update --include-eol-distros  # Support EOL distros.
   - pushd $CI_SOURCE_PATH/..
@@ -52,7 +52,7 @@ before_install:
   - popd
   - popd
 script:
-  - source /opt/ros/melodic/setup.bash
+  - source /opt/ros/noetic/setup.bash
   - export ROS_PACKAGE_PATH=`pwd`:$ROS_PACKAGE_PATH
   - export ROS_PACKAGE_PATH=`pwd`/../amrl_msgs:$ROS_PACKAGE_PATH
   - make
