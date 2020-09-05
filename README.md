@@ -28,11 +28,23 @@ Please cite this work using the following bibtex:
 1. Run `make`
 
 ## Configuration
-This project uses the `config-reader`.
+Configuration files are written in Lua.
+If `enml` is launched without any options, it will try to load the robot config
+file `config/robot.lua`. There are several example robot configurations,
+including `cobot.lua`, `ut_jackal.lua`, and `ut_automata.lua`. To specify a
+different robot config file, use the `-r` flag:
+```
+./bin/enml -r ut_jackal.lua
+```
+The base configuration directory is assumed to be `config`, but it can be
+overriden using the `-c` flag. For example:
+```
+./bin/enml -c ~/robot_config -r robot1.lua
+```
+This will load the `~/robot_config/robot1.lua` file. 
 
-The main configuration file can be found at `config/enml.lua`, which specifies parameters for the ENML algorithm. including the map name used to localize.
-
-In addition, a file called `config/robot.lua` must be specified, which configures the input topics, robot name, etc. An example can be found at `config/robot.lua.example`.
+The robot configuration file defined the ROS topics to listen to, initialization
+conditions, and EnML algorithm parameters.
 
 ## Usage
 
