@@ -133,7 +133,7 @@ if RobotConfig.name=="laikago_gazebo"then
   enml.limit_history = true;
 end
 
-if RobotConfig.name=="a1_gazebo"then
+if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
   -- DEFAULT STARTING LOCATION
