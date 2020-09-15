@@ -74,11 +74,9 @@ enml = {
 
 
 if RobotConfig.name=="laikago_gazebo"then
-  -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
   -- DEFAULT STARTING LOCATION
-  -- On the cobblestone next to the GDC door closest to the lab,
-  -- right next to grass, on the side with the lamp post and facing Speedway.
+  -- Doorway of AHG Apartment closest to drone cage facing the drone cage
   enml.map_name = "AHG_Apartment";
   enml.starting_loc_x = 0.0;
   enml.starting_loc_y = 0.0;
@@ -134,11 +132,9 @@ if RobotConfig.name=="laikago_gazebo"then
 end
 
 if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
-  -- On the cobblestone next to the GDC door closest to the lab,
   -- ********************************************************
   -- DEFAULT STARTING LOCATION
-  -- On the cobblestone next to the GDC door closest to the lab,
-  -- right next to grass, on the side with the lamp post and facing Speedway.
+  -- Doorway of AHG Apartment closest to drone cage facing the drone cage
   enml.map_name = "AHG_Apartment";
   enml.starting_loc_x = 0.0;
   enml.starting_loc_y = 0.0;
