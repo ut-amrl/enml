@@ -2,7 +2,7 @@ RobotConfig = {
   name = "ut_automata";
   scan_topic = "/scan";
   pointcloud_topic = "";
-  odometry_topic = "/odometry";
+  odometry_topic = "/odom";
   initialpose_topic = "/initialpose";
 };
 
