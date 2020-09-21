@@ -6,3 +6,4 @@ src/enml
 .vscode
 config/robot.lua
 data
+tags
