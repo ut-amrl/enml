@@ -386,6 +386,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_BOOL_CONFIG(limit_history);
   ENML_FLOAT_CONFIG(visibility_correlation_factor);
   ENML_UINT_CONFIG(num_skip_readings);
+  ENML_UINT_CONFIG(num_skip_readings_ltf);
   ENML_FLOAT_CONFIG(max_update_period);
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
@@ -411,6 +412,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   options->kMinLtfRatio = CONFIG_min_ltf_ratio;
   options->kMaxStfAngleError = CONFIG_max_stf_angle_error;
   options->num_skip_readings = CONFIG_num_skip_readings;
+  options->num_skip_readings_ltf = CONFIG_num_skip_readings_ltf;
   options->kMinEpisodeLength = CONFIG_min_episode_length;
   options->kMaxRepeatIterations = CONFIG_max_repeat_iterations;
   options->kNumRepeatIterations = CONFIG_num_repeat_iterations;
@@ -474,6 +476,7 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   options->kVisibilityCorrelationFactor = CONFIG_visibility_correlation_factor;
   options->num_skip_readings = CONFIG_num_skip_readings;
   options->max_update_period = CONFIG_max_update_period;
+  options->num_skip_readings_ltf = CONFIG_num_skip_readings_ltf;
   return true;
 }
 

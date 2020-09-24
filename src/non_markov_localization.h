@@ -120,6 +120,7 @@ class NonMarkovLocalization {
     float kMinLtfRatio;
     float kMaxStfAngleError;
     unsigned int num_skip_readings;
+    unsigned int num_skip_readings_ltf;
     unsigned int kMinEpisodeLength;
     int kMaxRepeatIterations;
     int kNumRepeatIterations;
