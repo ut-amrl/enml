@@ -1,6 +1,6 @@
 RobotConfig = {
   name = "a1";
-  scan_topic = "/cloud2scan";
+  scan_topic = "/scan";
   odometry_topic = "/odom";
   initialpose_topic = "/initialpose";
   pointcloud_topic = "";
