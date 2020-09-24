@@ -19,7 +19,7 @@ enml = {
   max_normal_point_distance = 0.05;
   robot_sensor_offset = vec3(0.22, 0.0, 0.15);
   num_skip_readings = 400; --4 this is only used for STF
-  num_skip_readings_ltf = 2;
+  num_skip_readings_ltf = 3;
 
   -- -- Odometry parameters.
   min_rotation = deg2rad(5);
@@ -27,15 +27,15 @@ enml = {
   max_odometry_delta_loc = 0.2;
   max_odometry_delta_angle = deg2rad(15.0);
   odometry_rotation_scale = 1.0;
-  odometry_translation_scale = 1.0;
+  odometry_translation_scale = 1.1;
 
   -- Parameters for Odometry constraints.
   max_update_period = 0.5;
   odometry_radial_stddev_rate = 0.1;
   odometry_tangential_stddev_rate = 0.1;
   odometry_angular_stddev_rate = 0.5; --0.5
-  odometry_translation_min_stddev = 0.001;
-  odometry_translation_max_stddev = 10.5;
+  odometry_translation_min_stddev = 0.05; --0.001;
+  odometry_translation_max_stddev = 11.5;
   odometry_rotation_min_stddev = deg2rad(10.0);
   odometry_rotation_max_stddev = deg2rad(1500.0);
 
