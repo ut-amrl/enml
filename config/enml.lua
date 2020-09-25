@@ -147,7 +147,7 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   -- VLP16 Sensor parameters.
   enml.laser_std_dev = 0.01;
   enml.min_point_cloud_range = 0.02;
-  enml.max_point_cloud_range = 100;
+  enml.max_point_cloud_range = 10;
   enml.max_normal_point_distance = 0.75;
   enml.robot_sensor_offset = vec3(0.05, 0.0, 0.5);
   enml.num_skip_readings = 1;
@@ -156,11 +156,11 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   enml.max_update_period = 0.5;
   enml.odometry_radial_stddev_rate = 0.1;
   enml.odometry_tangential_stddev_rate = 0.1;
-  enml.odometry_angular_stddev_rate = 0.5;
+  enml.odometry_angular_stddev_rate = 100000.5;
   enml.odometry_translation_min_stddev = 0.001;
   enml.odometry_translation_max_stddev = 10.5;
-  enml.odometry_rotation_min_stddev = deg2rad(10.0);
-  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
+  enml.odometry_rotation_min_stddev = deg2rad(1000.0);
+  enml.odometry_rotation_max_stddev = deg2rad(1500000.0);
 
   -- Parameters for STF constraints.
   enml.point_match_threshold = 0.25;
@@ -171,7 +171,7 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   -- Parameters for LTF constraints.
   enml.map_huber_loss = 0.25;
   enml.max_point_to_line_distance = 0.7;
-  enml.max_angle_error = deg2rad(35.0);
+  enml.max_angle_error = deg2rad(100.0);
   enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.
@@ -180,12 +180,12 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
 
   -- MLE Optimization parameters.
   enml.pose_increment = 1;
-  enml.max_history = 10;
-  enml.max_solver_iterations = 15;
+  enml.max_history = 5;
+  enml.max_solver_iterations = 20;
   enml.num_repeat_iterations = 1;
   enml.max_repeat_iterations = 3;
   enml.return_jacobian = false;
-  enml.num_threads = 24;
+  enml.num_threads = 8;
   enml.limit_history = true;
 end
 
