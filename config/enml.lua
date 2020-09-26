@@ -156,11 +156,11 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   enml.max_update_period = 0.5;
   enml.odometry_radial_stddev_rate = 0.1;
   enml.odometry_tangential_stddev_rate = 0.1;
-  enml.odometry_angular_stddev_rate = 100000.5;
+  enml.odometry_angular_stddev_rate = 2.;
   enml.odometry_translation_min_stddev = 0.001;
   enml.odometry_translation_max_stddev = 10.5;
-  enml.odometry_rotation_min_stddev = deg2rad(1000.0);
-  enml.odometry_rotation_max_stddev = deg2rad(1500000.0);
+  enml.odometry_rotation_min_stddev = deg2rad(25.0);
+  enml.odometry_rotation_max_stddev = deg2rad(1500.0);
 
   -- Parameters for STF constraints.
   enml.point_match_threshold = 0.25;
@@ -171,7 +171,7 @@ if RobotConfig.name=="a1_gazebo" or RobotConfig.name=="a1" then
   -- Parameters for LTF constraints.
   enml.map_huber_loss = 0.25;
   enml.max_point_to_line_distance = 0.7;
-  enml.max_angle_error = deg2rad(100.0);
+  enml.max_angle_error = deg2rad(50.0);
   enml.map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for visibility constraints.
