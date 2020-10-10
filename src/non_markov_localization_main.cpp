@@ -43,8 +43,11 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
 
+#include "geometry_msgs/Quaternion.h"
+#include "geometry_msgs/PoseStamped.h"
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
+#include "tf/transform_broadcaster.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -109,6 +112,7 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
+geometry_msgs::PoseStamped pose_msg_;     //added by mk, ryan
 
 // ROS message for visualization with WebViz.
 amrl_msgs::VisualizationMsg visualization_msg_;
@@ -179,6 +183,7 @@ ros::Publisher visualization_publisher_;
 
 // ROS publisher to publish the latest robot localization.
 ros::Publisher localization_publisher_;
+ros::Publisher pose_publisher_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -258,6 +263,47 @@ void PublishLocation(
   localization_msg_.pose.y = y;
   localization_msg_.pose.theta = angle;
   localization_publisher_.publish(localization_msg_);
+
+  //publish global pose with geometry_msgs
+  pose_msg_.header.stamp.fromSec(GetWallTime());
+  pose_msg_.header.frame_id= "map_en";
+  pose_msg_.pose.position.x = x;
+  pose_msg_.pose.position.y = y;
+  geometry_msgs::Quaternion q;
+  //tf::Quaternion q;
+  //q.setRPY(0,0,angle);
+
+  double temp_roll=0.0;
+  double temp_pitch=0.0;
+  double t0 = cos(angle* 0.5);
+  double t1 = sin(angle* 0.5);
+  double t2 = cos(temp_roll * 0.5);
+  double t3 = sin(temp_roll * 0.5);
+  double t4 = cos(temp_pitch * 0.5);
+  double t5 = sin(temp_pitch * 0.5);
+  q.w = t0 * t2 * t4 + t1 * t3 * t5;
+  q.x = t0 * t3 * t4 - t1 * t2 * t5;
+  q.y = t0 * t2 * t5 + t1 * t3 * t4;
+  q.z = t1 * t2 * t4 - t0 * t3 * t5;
+
+  pose_msg_.pose.orientation.x =q.x;
+  pose_msg_.pose.orientation.y =q.y;
+  pose_msg_.pose.orientation.z =q.z;
+  pose_msg_.pose.orientation.w =q.w;
+
+  pose_publisher_.publish(pose_msg_);
+
+  //publish tf frames
+  static tf::TransformBroadcaster br;
+  tf::Transform transform;
+  transform.setOrigin(tf::Vector3(x, y,0.0));
+  tf::Quaternion quat;
+  quat.setRPY(0,0,angle);
+  transform.setRotation(quat);
+  br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base"));
+
+
+
 }
 
 void PublishLocation() {
@@ -1754,6 +1800,7 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
   localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
   localization_publisher_.publish(msg);
+  //From this intiial_pose we have to set the 
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1771,7 +1818,7 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
   Subscriber initialize_subscriber =
-      node->subscribe("/set_pose", 1, InitializeCallback);
+      node->subscribe("/initialpose", 1, InitializeCallback); // /set_pose
 
   ClearDisplay();
   PublishDisplay();
@@ -1813,6 +1860,7 @@ void HandleStop(int i) {
 
 void InitializeMessages() {
   ros_helpers::InitRosHeader("map", &localization_msg_.header);
+  ros_helpers::InitRosHeader("map", &pose_msg_.header);
 }
 
 int main(int argc, char** argv) {
@@ -1902,6 +1950,10 @@ int main(int argc, char** argv) {
         "visualization", 1, true);
     visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
   }
+  pose_publisher_ =
+      ros_node.advertise<geometry_msgs::PoseStamped>(
+      "global_pose", 1, true);
+
 
   if (bag_file != NULL) {
     PlayBagFile(
