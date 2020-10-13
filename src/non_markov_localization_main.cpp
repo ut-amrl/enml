@@ -45,6 +45,7 @@
 
 #include "geometry_msgs/Quaternion.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
 #include "tf/transform_broadcaster.h"
@@ -1792,13 +1793,16 @@ void PlayBagFile(const string& bag_file,
   }
 }
 
-void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
-  if (debug_level_ > -1) {
-    printf("Initialize %s %f,%f %f\u00b0\n",
-        msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
-  }
+void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
+  // if (debug_level_ > -1) {
+  //   printf("Initialize %s %f,%f %f\u00b0\n",
+  //       msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
+  // }
+
+  double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
+
   localization_->Initialize(
-      Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
+      Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
   localization_publisher_.publish(msg);
   //From this intiial_pose we have to set the 
 }
