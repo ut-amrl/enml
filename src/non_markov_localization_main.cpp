@@ -45,7 +45,7 @@
 
 #include "geometry_msgs/Quaternion.h"
 #include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/PoseWithCovarianceStamped.h"
+#include "geometry_msgs/PoseWithCovarianceStamped.h" 
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
 #include "tf/transform_broadcaster.h"
@@ -53,13 +53,13 @@
 #include "non_markov_localization.h"
 #include "perception_2d.h"
 #include "popt_pp/popt_pp.h"
-#include "math/geometry.h"
-#include "math/math_util.h"
-#include "ros/ros_helpers.h"
-#include "util/helpers.h"
-#include "util/pthread_utils.h"
-#include "util/random.h"
-#include "util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/math_util.h"
+#include "shared/ros/ros_helpers.h"
+#include "shared/util/helpers.h"
+#include "shared/util/pthread_utils.h"
+#include "shared/util/random.h"
+#include "shared/util/timer.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
 #include "config_reader/config_reader.h"
@@ -437,7 +437,8 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   ENML_STRING_CONFIG(map_name);
   config_reader::ConfigReader reader({
     std::string(config_dir_) + "/common.lua",
-    std::string(config_dir_) + "/" + std::string(robot_config_)
+    std::string(config_dir_) + "/" + std::string(robot_config_),
+    std::string(config_dir_) + "/enml.lua"
   });
   options->kMinRange = CONFIG_min_point_cloud_range;
   options->kMaxRange = CONFIG_max_point_cloud_range;
@@ -1798,13 +1799,19 @@ void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
   //   printf("Initialize %s %f,%f %f\u00b0\n",
   //       msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
   // }
-
-  double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
-
-  localization_->Initialize(
-      Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
-  localization_publisher_.publish(msg);
+  // localization_->Initialize(
+  //     Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
+  // localization_publisher_.publish(msg);
   //From this intiial_pose we have to set the 
+  double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
+  localization_->Initialize(
+                        Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
+  amrl_msgs::Localization2DMsg loc_msg_local;
+  loc_msg_local.header = msg.header;
+  loc_msg_local.pose.x = msg.pose.pose.position.x;
+  loc_msg_local.pose.y = msg.pose.pose.position.y;
+  loc_msg_local.pose.theta = yaw;
+  localization_publisher_.publish(loc_msg_local);
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1884,6 +1891,7 @@ int main(int argc, char** argv) {
   double time_skip = 0;
   bool unique_node_name = false;
   bool return_initial_poses = false;
+  char* robot_config_opt = NULL;
 
 
 
@@ -1918,6 +1926,8 @@ int main(int argc, char** argv) {
         "Save LTFs", "NONE"},
     { "quiet", 'q', POPT_ARG_NONE, &quiet_, 0,
         "Quiet", "NONE"},
+    { "robot_config", 'r', POPT_ARG_STRING, &robot_config_opt, 0,
+        "Robot config file", "STRING"},
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };

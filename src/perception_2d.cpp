@@ -25,7 +25,7 @@
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
-#include "math/math_util.h"
+#include "shared/math/math_util.h"
 
 using Eigen::Rotation2Df;
 using Eigen::Vector2f;

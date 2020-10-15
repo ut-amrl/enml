@@ -29,10 +29,10 @@
 #include "eigen3/Eigen/Geometry"
 #include "gflags/gflags.h"
 
-#include "math/geometry.h"
-#include "math/line2d.h"
-#include "math/math_util.h"
-#include "util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/line2d.h"
+#include "shared/math/math_util.h"
+#include "shared/util/timer.h"
 #include "vector_map.h"
 
 using math_util::AngleDist;

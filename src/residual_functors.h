@@ -28,7 +28,7 @@
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
 
-#include "math/math_util.h"
+#include "shared/math/math_util.h"
 #include "non_markov_localization.h"
 
 #ifdef NDEBUG
