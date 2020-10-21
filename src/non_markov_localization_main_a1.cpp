@@ -2010,7 +2010,7 @@ int main(int argc, char** argv) {
   }
   pose_publisher_ =
       ros_node.advertise<geometry_msgs::PoseStamped>(
-      "global_pose", 1, true);
+      "global_pose_a1", 1, true);
 
   tf2_listener= new tf2_ros::TransformListener(tf_buffer);
 
