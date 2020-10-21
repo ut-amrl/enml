@@ -1854,29 +1854,24 @@ void PlayBagFile(const string& bag_file,
   }
 }
 
-void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
-//void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
-  if (debug_level_ > -1) {
-    printf("Initialize %s %f,%f %f\u00b0\n",
-        msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
-  }
-  localization_->Initialize(
-      Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
-  localization_publisher_.publish(msg);
-
-  //double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
-  //localization_->Initialize(
-                        //Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
-  //amrl_msgs::Localization2DMsg loc_msg_local;
-  //loc_msg_local.header = msg.header;
-  //loc_msg_local.pose.x = msg.pose.pose.position.x;
-  //loc_msg_local.pose.y = msg.pose.pose.position.y;
-  //loc_msg_local.pose.theta = yaw;
-  //localization_publisher_.publish(loc_msg_local);
-
-
-
-  //From this intiial_pose we have to set the 
+void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
+      // if (debug_level_ > -1) {
+      //   printf("Initialize %s %f,%f %f\u00b0\n",
+      //       msg.map.c_str(), msg.pose.x, msg.pose.y, RadToDeg(msg.pose.theta));
+      // }
+      // localization_->Initialize(
+      //     Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
+      // localization_publisher_.publish(msg);
+      //From this intiial_pose we have to set the 
+      double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
+      localization_->Initialize(
+        Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
+      amrl_msgs::Localization2DMsg loc_msg_local;
+      loc_msg_local.header = msg.header;
+      loc_msg_local.pose.x = msg.pose.pose.position.x;
+      loc_msg_local.pose.y = msg.pose.pose.position.y;
+      loc_msg_local.pose.theta = yaw;
+      localization_publisher_.publish(loc_msg_local);
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1894,7 +1889,7 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
   Subscriber initialize_subscriber =
-      node->subscribe("/initialpose", 1, InitializeCallback); // /set_pose
+      node->subscribe("/initialpose_hsrb", 1, InitializeCallback); // /set_pose
 
   ClearDisplay();
   PublishDisplay();
