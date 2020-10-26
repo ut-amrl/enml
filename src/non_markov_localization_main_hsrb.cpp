@@ -2012,7 +2012,7 @@ int main(int argc, char** argv) {
       StringPrintf("NonMarkovLocalization_%lu",
                    static_cast<uint64_t>(GetWallTime() * 1000000.0)) :
       string("NonMarkovLocalization");
-  ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
+  ros::init(argc, argv, "non_markov_localization_hsrb", ros::init_options::NoSigintHandler);
   ros::NodeHandle ros_node;
   InitializeMessages();
   localization_publisher_ =

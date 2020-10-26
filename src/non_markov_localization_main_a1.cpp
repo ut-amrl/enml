@@ -182,6 +182,7 @@ static const uint32_t kDfPointColor  = 0x7F37B30C;
 bool run_ = true;
 int debug_level_ = -1;
 int publishiter=0;
+bool initialized_=false;
 
 // ROS publisher to publish visualization messages.
 ros::Publisher visualization_publisher_;
@@ -192,6 +193,7 @@ ros::Publisher pose_publisher_;
 tf2_ros::Buffer tf_buffer;
 tf2_ros::TransformListener* tf2_listener; 
 geometry_msgs::TransformStamped map_en_to_map;
+tf::Transform init_transform;
 //map_en_to_map= tf_buffer.lookupTransform("map_en", "map", ros::Time(0), ros::Duration(1.0) );
 
 // Parameters and settings for Non-Markov Localization.
@@ -310,6 +312,12 @@ void PublishLocation(
   quat.setRPY(0,0,angle);
   transform.setRotation(quat);
   br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base"));
+
+  static tf::TransformBroadcaster br2;
+  if(initialized_)
+  {
+      br.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
+  }
 
 
   //publish tf frames
@@ -1828,6 +1836,19 @@ void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
   loc_msg_local.pose.y = msg.pose.pose.position.y;
   loc_msg_local.pose.theta = yaw;
   localization_publisher_.publish(loc_msg_local);
+
+//publish tf frames
+  static tf::TransformBroadcaster br;
+  //tf::Transform transform;
+  init_transform.setOrigin(tf::Vector3(msg.pose.pose.position.x, msg.pose.pose.position.y,0.0));
+  tf::Quaternion quat;
+  quat.setRPY(0,0,yaw);
+  init_transform.setRotation(quat);
+  br.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
+  initialized_=true;
+  std::cout<<"sending map_en <--> odom"<<std::endl;
+
+
 }
 
 
