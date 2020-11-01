@@ -305,20 +305,19 @@ void PublishLocation(
   pose_publisher_.publish(pose_msg_);
 
   //publish tf frames
-  static tf::TransformBroadcaster br;
-  tf::Transform transform;
-  transform.setOrigin(tf::Vector3(x, y,0.0));
-  tf::Quaternion quat;
-  quat.setRPY(0,0,angle);
-  transform.setRotation(quat);
-  br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base"));
+  //static tf::TransformBroadcaster br;
+  //tf::Transform transform;
+  //transform.setOrigin(tf::Vector3(x, y,0.0));
+  //tf::Quaternion quat;
+  //quat.setRPY(0,0,angle);
+  //transform.setRotation(quat);
+  //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base"));
 
-  static tf::TransformBroadcaster br2;
-  if(initialized_)
-  {
-      br.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
-  }
-
+  //static tf::TransformBroadcaster br2;
+  //if(initialized_)
+  //{
+      //br2.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
+  //}
 
   //publish tf frames
   //static tf::TransformBroadcaster br;
@@ -1838,15 +1837,14 @@ void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
   localization_publisher_.publish(loc_msg_local);
 
 //publish tf frames
-  static tf::TransformBroadcaster br;
-  //tf::Transform transform;
-  init_transform.setOrigin(tf::Vector3(msg.pose.pose.position.x, msg.pose.pose.position.y,0.0));
-  tf::Quaternion quat;
-  quat.setRPY(0,0,yaw);
-  init_transform.setRotation(quat);
-  br.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
-  initialized_=true;
-  std::cout<<"sending map_en <--> odom"<<std::endl;
+  //static tf::TransformBroadcaster br;
+  //init_transform.setOrigin(tf::Vector3(msg.pose.pose.position.x, msg.pose.pose.position.y,0.0));
+  //tf::Quaternion quat;
+  //quat.setRPY(0,0,yaw);
+  //init_transform.setRotation(quat);
+  //br.sendTransform(tf::StampedTransform(init_transform, ros::Time::now(), "map_en", "odom"));
+  //initialized_=true;
+  //std::cout<<"sending map_en <--> odom"<<std::endl;
 
 
 }
