@@ -275,6 +275,90 @@ void PublishLocation(
   localization_msg_.pose.theta = angle;
   localization_publisher_.publish(localization_msg_);
 
+  //-------------------------
+  //
+  if(publishiter>5){
+
+      try{
+          map_en_to_map= tf_buffer.lookupTransform("map_en", "map", ros::Time(0), ros::Duration(1.0) );
+      }
+      catch (tf2::TransformException &ex)
+      {
+          ROS_WARN("lookupTransform Failed: %s", ex.what());
+          publishiter=0;
+          return;
+      }
+
+
+      geometry_msgs::PoseStamped tmp_pose;     //added by mk, ryan
+      tmp_pose.header.stamp.fromSec(GetWallTime());
+      tmp_pose.header.frame_id= "map_en";
+      tmp_pose.pose.position.x = x;
+      tmp_pose.pose.position.y = y;
+      //printf("map-en: x: %.2lf, y: %.2lf \n", x, y);
+
+      geometry_msgs::Quaternion q;
+
+      double temp_roll=0.0;
+      double temp_pitch=0.0;
+      double t0 = cos(angle* 0.5);
+      double t1 = sin(angle* 0.5);
+      double t2 = cos(temp_roll * 0.5);
+      double t3 = sin(temp_roll * 0.5);
+      double t4 = cos(temp_pitch * 0.5);
+      double t5 = sin(temp_pitch * 0.5);
+      q.w = t0 * t2 * t4 + t1 * t3 * t5;
+      q.x = t0 * t3 * t4 - t1 * t2 * t5;
+      q.y = t0 * t2 * t5 + t1 * t3 * t4;
+      q.z = t1 * t2 * t4 - t0 * t3 * t5;
+
+      tmp_pose.pose.orientation.x =q.x;
+      tmp_pose.pose.orientation.y =q.y;
+      tmp_pose.pose.orientation.z =q.z;
+      tmp_pose.pose.orientation.w =q.w;
+
+      geometry_msgs::PoseStamped pose_out;     //added by mk, ryan
+      //tf2::doTransform(tmp_pose, tmp_pose, map_en_to_map);
+      try{
+          tf_buffer.transform(tmp_pose,pose_out, "map");
+      }
+      catch (tf2::TransformException &ex)
+      {
+          ROS_WARN("Transform Failed: %s", ex.what());
+          
+          publishiter=0;
+          return;
+      
+      }
+
+      //printf("----- map: x: %.2lf, y: %.2lf", pose_out.pose.position.x, pose_out.pose.position.y);
+      pose_msg_.header.stamp.fromSec(GetWallTime());
+      pose_msg_.header.frame_id= "map";
+      pose_msg_.pose=pose_out.pose;
+      //pose_msg_.pose.pose.position.x = tmp_pose.x;
+      //pose_msg_.pose.pose.position.y = tmp_pose.y;
+      //pose_msg_.pose.covariance={0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25,
+                            //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                            //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                            //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.06853891945200942};
+      pose_publisher_.publish(pose_msg_);
+
+
+      publishiter=0;
+  }
+
+  publishiter++;
+
+  //static tf::TransformBroadcaster br;
+  //tf::Transform transform;
+  //transform.setOrigin(tf::Vector3(pose_msg_.pose.position.x, pose_msg_.pose.position.y,0.0));
+  //tf::Quaternion quat(pose_msg_.pose.orientation.x, pose_msg_.pose.orientation.y, pose_msg_.pose.orientation.z, pose_msg_.pose.orientation.w);
+  //transform.setRotation(quat);
+  //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base"));
+
+
+  //-----------------------
+  /*
  //publish global pose with geometry_msgs
   pose_msg_.header.stamp.fromSec(GetWallTime());
   pose_msg_.header.frame_id= "map_en";
@@ -304,6 +388,8 @@ void PublishLocation(
 
   pose_publisher_.publish(pose_msg_);
 
+
+
   //publish tf frames
   //static tf::TransformBroadcaster br;
   //tf::Transform transform;
@@ -327,6 +413,7 @@ void PublishLocation(
   //quat.setRPY(0,0,angle);
   //transform.setRotation(quat);
   //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base_footprint"));
+  */
 
 }
 
@@ -2030,6 +2117,8 @@ int main(int argc, char** argv) {
   pose_publisher_ =
       ros_node.advertise<geometry_msgs::PoseStamped>(
       "global_pose_a1", 1, true);
+
+  pose_msg_.pose.orientation.w=1.0;
 
   tf2_listener= new tf2_ros::TransformListener(tf_buffer);
 
