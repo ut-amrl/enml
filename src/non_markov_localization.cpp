@@ -463,7 +463,8 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
   CHECK_EQ(line_correspondences.size(), point_cloud.size());
   int num_ltfs = 0;
   int num_vltfs = 0;
-  for (size_t j = 0; j < point_cloud.size(); ++j) {
+  for (size_t j = 0; j < point_cloud.size(); 
+      j+= localization_options_.num_skip_readings) {
     const int correspondence = line_correspondences[j];
     if (correspondence >= 0) {
       const Line2f& line = ray_cast[correspondence];
