@@ -1346,6 +1346,9 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
   const Vector2f new_pos(msg.pose.pose.position.x, msg.pose.pose.position.y);
   if ((new_pos - last_pos).squaredNorm() < Sq(kMaxDist)) {
     StandardOdometryCallback(last_msg_, msg);
+  } else if (debug_level_ > 0) {
+    printf("\nWARNING: Large odometry change (%.3f) ignored!\n\n", 
+        (new_pos - last_pos).norm());
   }
   last_pos = new_pos;
   last_msg_ = msg;
