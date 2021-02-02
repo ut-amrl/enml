@@ -1,0 +1,20 @@
+<package format="2">
+  <name>enml</name>
+  <version>1.0.0</version>
+  <description>
+    ROS Message definitions used by AMRL projects
+  </description>
+  <maintainer email="joydeepb@cs.utexas.edu">Joydeep Biswas</maintainer>
+  <license>GPLv3.0</license>
+
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>roscpp</depend>
+  <depend>rosbag</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf_msgs</depend>
+  <depend>amrl_msgs</depend>
+
+</package>
+
