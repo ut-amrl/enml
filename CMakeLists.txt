@@ -18,17 +18,19 @@ ENDIF()
 
 ADD_DEFINITIONS(-Wfatal-errors)
 
-INCLUDE($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
-rosbuild_init()
-SET(ROS_BUILD_STATIC_LIBS true)
-SET(ROS_BUILD_SHARED_LIBS false)
-
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+
+# Path to amrl message's "amrl_msgsConfig.cmake"
+SET(CMAKE_PREFIX_PATH "/home/administrator/PROJECTS/fault_monitoring/amrl_msgs/build/devel/share/amrl_msgs/cmake")
 
 FIND_PACKAGE(Lua51 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 FIND_PACKAGE(Ceres REQUIRED)
+FIND_PACKAGE(roscpp REQUIRED)
+FIND_PACKAGE(roslib REQUIRED)
+FIND_PACKAGE(rosbag REQUIRED)
+FIND_PACKAGE(amrl_msgs REQUIRED)
 
 INCLUDE_DIRECTORIES(src/shared)
 ADD_SUBDIRECTORY(src/shared)
@@ -39,12 +41,20 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/config-reader/include)
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${roscpp_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${roslib_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${rosbag_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${amrl_msgs_INCLUDE_DIRS})
 
-SET(libs roslib roscpp ncurses popt pthread glut boost_system
-    ${LUA_LIBRARIES} rt glog rosbag amrl_shared_lib
+
+SET(libs ncurses popt pthread glut boost_system
+    ${LUA_LIBRARIES} rt glog amrl_shared_lib
+    ${roscpp_LIBRARIES} 
+    ${roslib_LIBRARIES}
+    ${rosbag_LIBRARIES}
     ${BUILD_SPECIFIC_LIBRARIES})
 
-ROSBUILD_ADD_LIBRARY(enml_support_lib
+ADD_LIBRARY(enml_support_lib
     src/kdtree.cpp
     src/perception_2d.cpp
     src/vector_map/vector_map.cc
@@ -52,14 +62,13 @@ ROSBUILD_ADD_LIBRARY(enml_support_lib
     src/visualization/gui_helpers.cc)
 TARGET_LINK_LIBRARIES(enml_support_lib ceres ${libs})
 
-ROSBUILD_ADD_EXECUTABLE(enml
+ADD_EXECUTABLE(enml
     src/non_markov_localization_main.cpp
     src/non_markov_localization.cpp)
 ADD_DEPENDENCIES(enml
-    rosbuild_precompile
     ceres)
 TARGET_LINK_LIBRARIES(enml enml_support_lib)
 
-ROSBUILD_ADD_EXECUTABLE(add_initialization
+ADD_EXECUTABLE(add_initialization
     src/add_initialization.cpp)
 TARGET_LINK_LIBRARIES(add_initialization console_bridge enml_support_lib)
