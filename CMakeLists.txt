@@ -21,9 +21,6 @@ ADD_DEFINITIONS(-Wfatal-errors)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-# Path to amrl message's "amrl_msgsConfig.cmake"
-SET(CMAKE_PREFIX_PATH "/home/administrator/PROJECTS/fault_monitoring/amrl_msgs/build/devel/share/amrl_msgs/cmake")
-
 FIND_PACKAGE(Lua51 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 FIND_PACKAGE(Ceres REQUIRED)
