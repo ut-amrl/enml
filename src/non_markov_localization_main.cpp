@@ -42,6 +42,9 @@
 #include "rosbag/view.h"
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
+#include "geometry_msgs/PoseStamped.h"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
@@ -177,8 +180,11 @@ int debug_level_ = -1;
 // ROS publisher to publish visualization messages.
 ros::Publisher visualization_publisher_;
 
-// ROS publisher to publish the latest robot localization.
-ros::Publisher localization_publisher_;
+// ROS publisher to publish the latest robot localization w/ amrl_msgs.
+ros::Publisher localization_publisher_amrl_;
+
+// ROS publisher to publish the latest robot localization w/ ros geometry_msgs.
+ros::Publisher localization_publisher_ros_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -250,6 +256,24 @@ void ApplyNoiseModel(
   *da_n = delta_noisy(2);
 }
 
+geometry_msgs::PoseStamped ConvertAMRLmsgToROSmsg(const amrl_msgs::Localization2DMsg& pose_amrl){
+  geometry_msgs::PoseStamped pose_ros;
+  // Header information
+  pose_ros.header.stamp = pose_amrl.header.stamp;
+  pose_ros.header.frame_id = pose_amrl.map;
+  // Position
+  pose_ros.pose.position.x = pose_amrl.pose.x;
+  pose_ros.pose.position.y = pose_amrl.pose.y;
+  pose_ros.pose.position.z = 0.0;
+  // Orientation
+  tf2::Quaternion q;
+  q.setRPY( 0, 0, pose_amrl.pose.theta );
+  q.normalize();  // Handles numerical error from RPY conversion
+  pose_ros.pose.orientation = tf2::toMsg(q);
+
+  return pose_ros;
+}
+
 void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
   localization_msg_.header.stamp.fromSec(GetWallTime());
@@ -257,7 +281,8 @@ void PublishLocation(
   localization_msg_.pose.x = x;
   localization_msg_.pose.y = y;
   localization_msg_.pose.theta = angle;
-  localization_publisher_.publish(localization_msg_);
+  localization_publisher_amrl_.publish(localization_msg_);
+  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(localization_msg_));
 }
 
 void PublishLocation() {
@@ -1756,7 +1781,8 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
   }
   localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
-  localization_publisher_.publish(msg);
+  localization_publisher_amrl_.publish(msg);
+  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(msg));
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1896,9 +1922,12 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   ros::NodeHandle ros_node;
   InitializeMessages();
-  localization_publisher_ =
+  localization_publisher_amrl_ =
       ros_node.advertise<amrl_msgs::Localization2DMsg>(
       "localization", 1, true);
+  localization_publisher_ros_ =
+      ros_node.advertise<geometry_msgs::PoseStamped>(
+      "localization_ros", 1, true);
   {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(
