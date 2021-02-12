@@ -7,23 +7,23 @@ RobotConfig = {
 };
 
 enml = {
-  map_name = "EmptyMap";
-  starting_loc_x = 14.8;
-  starting_loc_y = 14.4;
+  map_name = "AHG2";
+  starting_loc_x = 114.06;
+  starting_loc_y = -251.86;
   starting_angle = deg2rad(180.0);
 
   -- Hokuyo UST-10lx Sensor parameters.
   laser_std_dev = 0.05;
   min_point_cloud_range = 0.02;
-  max_point_cloud_range = 9.9;
+  max_point_cloud_range = 30.0;
   max_normal_point_distance = 0.05;
   robot_sensor_offset = vec3(0.22, 0.0, 0.15);
   num_skip_readings = 4;
 
   -- -- Odometry parameters.
   min_rotation = deg2rad(5);
-  min_translation = 0.1;
-  max_odometry_delta_loc = 0.2;
+  min_translation = 0.05;
+  max_odometry_delta_loc = 0.1;
   max_odometry_delta_angle = deg2rad(15.0);
   odometry_rotation_scale = 1.0;
   odometry_translation_scale = 1.0;
@@ -39,16 +39,16 @@ enml = {
   odometry_rotation_max_stddev = deg2rad(1500.0);
 
   -- Parameters for LTF constraints.
-  map_huber_loss = 0.1;
-  max_point_to_line_distance = 0.15;
+  map_huber_loss = 0.25;
+  max_point_to_line_distance = 0.7;
   max_angle_error = deg2rad(35.0);
   map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for STF constraints.
-  point_match_threshold = 0.15;
+  point_match_threshold = 0.25;
   max_stf_angle_error = deg2rad(35.0);
-  max_correspondences_per_point = 6;
-  point_correlation_factor = 1.0 / 10.0;
+  max_correspondences_per_point = 10;
+  point_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for Object constraints.
   use_object_constraints = false;
@@ -57,7 +57,7 @@ enml = {
   min_object_overlap = 300;
 
   -- Parameters for visibility constraints.
-  use_visibility_constraints = true;
+  use_visibility_constraints = false;
   visibility_correlation_factor = 0.02;
 
   -- Parameters for episode segmentation.
@@ -66,11 +66,11 @@ enml = {
 
   -- MLE Optimization parameters.
   pose_increment = 1;
-  max_history = 5;
-  max_solver_iterations = 20;
+  max_history = 10;
+  max_solver_iterations = 5;
   num_repeat_iterations = 1;
   max_repeat_iterations = 3;
   return_jacobian = false;
-  num_threads = 12;
-  limit_history = false;
+  num_threads = 8;
+  limit_history = true;
 };
