@@ -15,10 +15,10 @@ enml = {
   -- Hokuyo UST-10lx Sensor parameters.
   laser_std_dev = 0.05;
   min_point_cloud_range = 0.02;
-  max_point_cloud_range = 30.0;
-  max_normal_point_distance = 0.05;
+  max_point_cloud_range = 7.9;
+  max_normal_point_distance = 0.1;
   robot_sensor_offset = vec3(0.22, 0.0, 0.15);
-  num_skip_readings = 4;
+  num_skip_readings = 1;
 
   -- -- Odometry parameters.
   min_rotation = deg2rad(5);
@@ -39,16 +39,16 @@ enml = {
   odometry_rotation_max_stddev = deg2rad(1500.0);
 
   -- Parameters for LTF constraints.
-  map_huber_loss = 0.25;
-  max_point_to_line_distance = 0.7;
+  map_huber_loss = 0.1;
+  max_point_to_line_distance = 0.25;
   max_angle_error = deg2rad(35.0);
-  map_correlation_factor = 1.0 / 5.0;
+  map_correlation_factor = 1.0 / 50.0;
 
   -- Parameters for STF constraints.
-  point_match_threshold = 0.25;
-  max_stf_angle_error = deg2rad(35.0);
-  max_correspondences_per_point = 10;
-  point_correlation_factor = 1.0 / 5.0;
+  point_match_threshold = 0.15;
+  max_stf_angle_error = deg2rad(25.0);
+  max_correspondences_per_point = 6;
+  point_correlation_factor = 1.0 / 40.0;
 
   -- Parameters for Object constraints.
   use_object_constraints = false;
@@ -57,7 +57,7 @@ enml = {
   min_object_overlap = 300;
 
   -- Parameters for visibility constraints.
-  use_visibility_constraints = false;
+  use_visibility_constraints = true;
   visibility_correlation_factor = 0.02;
 
   -- Parameters for episode segmentation.
@@ -66,11 +66,11 @@ enml = {
 
   -- MLE Optimization parameters.
   pose_increment = 1;
-  max_history = 10;
+  max_history = 80;
   max_solver_iterations = 5;
   num_repeat_iterations = 1;
-  max_repeat_iterations = 3;
+  max_repeat_iterations = 4;
   return_jacobian = false;
   num_threads = 8;
-  limit_history = true;
+  limit_history = false;
 };
