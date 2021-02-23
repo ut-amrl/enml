@@ -18,25 +18,25 @@ enml = {
   max_point_cloud_range = 12.0;
   max_normal_point_distance = 0.05;
   robot_sensor_offset = vec3(0.22, 0.0, 0.15);
-  num_skip_readings = 1;
+  num_skip_readings = 2;
 
   -- -- Odometry parameters.
   min_rotation = deg2rad(5);
-  min_translation = 0.1;
+  min_translation = 0.05;
   max_odometry_delta_loc = 0.2;
   max_odometry_delta_angle = deg2rad(15.0);
-  odometry_rotation_scale = 0.9;
+  odometry_rotation_scale = 1.0;
   odometry_translation_scale = 1.1;
 
   -- Parameters for Odometry constraints.
   max_update_period = 0.5;
   odometry_radial_stddev_rate = 0.1;
   odometry_tangential_stddev_rate = 0.1;
-  odometry_angular_stddev_rate = 0.2;
+  odometry_angular_stddev_rate = 0.1;
   odometry_translation_min_stddev = 0.001;
   odometry_translation_max_stddev = 10.5;
-  odometry_rotation_min_stddev = deg2rad(10.0);
-  odometry_rotation_max_stddev = deg2rad(1500.0);
+  odometry_rotation_min_stddev = deg2rad(1.0);
+  odometry_rotation_max_stddev = deg2rad(15.0);
 
   -- Parameters for LTF constraints.
   map_huber_loss = 0.1;
@@ -66,7 +66,7 @@ enml = {
 
   -- MLE Optimization parameters.
   pose_increment = 1;
-  max_history = 5;
+  max_history = 3;
   max_solver_iterations = 20;
   num_repeat_iterations = 1;
   max_repeat_iterations = 4;
