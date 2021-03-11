@@ -3,4 +3,5 @@ sudo apt-get install g++ cmake libpopt-dev \
     liblua5.1-dev libeigen3-dev \
     libjpeg8-dev libgoogle-perftools-dev \
     libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
-    libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev
+    libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
+    libncurses5-dev
