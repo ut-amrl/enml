@@ -25,7 +25,11 @@ Please cite this work using the following bibtex:
    ```
     export ROS_PACKAGE_PATH=`pwd`:$ROS_PACKAGE_PATH
     ```
-1. Run `make`
+1. Verify that [amrl_msgs](https://github.com/ut-amrl/amrl_msgs) is installed and is also in the `ROS_PACKAGE_PATH` variable.  It's directory should appear in the list when you run:
+   ```
+    echo $ROS_PACKAGE_PATH
+    ```
+4. Run `make`
 
 ## Configuration
 Configuration files are written in Lua.
