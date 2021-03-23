@@ -36,6 +36,8 @@ jobs:
       # Checks out a copy of your repository
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
 
       # Checkout and build amrl_msgs
       - name: Get amrl_msgs
