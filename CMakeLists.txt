@@ -40,7 +40,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/config-reader/include)
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
 
-SET(libs roslib roscpp ncurses popt pthread glut boost_system
+SET(libs roslib roscpp ncurses popt pthread boost_system
     ${LUA_LIBRARIES} rt glog rosbag amrl_shared_lib
     ${BUILD_SPECIFIC_LIBRARIES})
 
