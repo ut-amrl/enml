@@ -276,7 +276,7 @@ geometry_msgs::PoseStamped ConvertAMRLmsgToROSmsg(const amrl_msgs::Localization2
 
 void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
-  localization_msg_.header.stamp.fromSec(GetWallTime());
+  localization_msg_.header.stamp = ros::Time::now();
   localization_msg_.map = map_name;
   localization_msg_.pose.x = x;
   localization_msg_.pose.y = y;
