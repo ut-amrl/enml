@@ -136,7 +136,6 @@ void SetSolverOptions(
   // solver_options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   solver_options.minimizer_progress_to_stdout = false;
   solver_options.num_threads = localization_options.kNumThreads;
-  solver_options.num_linear_solver_threads = localization_options.kNumThreads;
   solver_options.max_num_iterations =
       localization_options.max_solver_iterations;
   solver_options.function_tolerance = 1e-7;
@@ -753,7 +752,6 @@ void NonMarkovLocalization::SensorResettingResample(
     solver_options.linear_solver_type = ceres::SPARSE_SCHUR;
     solver_options.minimizer_progress_to_stdout = false;
     solver_options.num_threads = localization_options_.kNumThreads;
-    solver_options.num_linear_solver_threads = localization_options_.kNumThreads;
     solver_options.max_num_iterations = 2;
     solver_options.function_tolerance = 0.001;
     // solver_options.update_state_every_iteration = true;
