@@ -7,7 +7,7 @@ RobotConfig = {
 };
 
 enml = {
-  map_name = "UT_AUTOmata_Track";
+  map_name = "UT_AUTOmata_Track_New";
   starting_loc_x = 1.0;
   starting_loc_y = 3.0;
   starting_angle = deg2rad(0.0);
