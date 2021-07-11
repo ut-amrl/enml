@@ -94,6 +94,8 @@ struct VectorMap {
 
   void Load(const std::string& file);
 
+  void Save(const std::string& file);
+
   bool Intersects(const Eigen::Vector2f& v0, const Eigen::Vector2f& v1) const ;
   std::vector<geometry::Line2f> lines;
   std::string file_name;
