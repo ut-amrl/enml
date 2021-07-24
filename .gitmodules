@@ -4,6 +4,3 @@
 [submodule "src/config-reader"]
 	path = src/config-reader
 	url = https://github.com/ut-amrl/config-reader.git
-[submodule "maps"]
-	path = maps
-	url = https://github.com/ut-amrl/amrl_maps.git

@@ -12,7 +12,7 @@ enml = {
   -- DEFAULT STARTING LOCATION
   -- On the cobblestone next to the GDC door closest to the lab,
   -- right next to grass, on the side with the lamp post and facing Speedway.
-  map_name = "UT_Campus";
+  map_name = "AHG2";
   starting_loc_x = 114.067214966;
   starting_loc_y = -251.863693237;
   starting_angle = deg2rad(-175);

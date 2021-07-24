@@ -63,3 +63,7 @@ TARGET_LINK_LIBRARIES(enml enml_support_lib)
 ROSBUILD_ADD_EXECUTABLE(add_initialization
     src/add_initialization.cpp)
 TARGET_LINK_LIBRARIES(add_initialization console_bridge enml_support_lib)
+
+ROSBUILD_ADD_EXECUTABLE(scene_render_test
+    src/scene_render_test.cc)
+TARGET_LINK_LIBRARIES(scene_render_test enml_support_lib)

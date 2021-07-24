@@ -9,7 +9,7 @@ RobotConfig = {
 };
 
 enml = {
-  map_name = "EmptyMap";
+  map_name = "AHG2";
   starting_loc_x = 0;
   starting_loc_y = 0;
   starting_angle = deg2rad(180.0);

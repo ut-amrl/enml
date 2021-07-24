@@ -18,6 +18,11 @@ Please cite this work using the following bibtex:
 }
 ```
 
+## ROS Dependencies
+1. [ROS](https://www.ros.org/)
+1. [AMRL Maps](https://github.com/ut-amrl/amrl_maps)
+1. [AMRL ROS Messages](https://github.com/ut-amrl/amrl_msgs)
+
 ## Compiling
 1. Run `./InstallPackages` to install the dependencies on *ubuntu >=14.04 .
 1. Add the working directory to the `ROS_PACKAGE_PATH` environment variable with:

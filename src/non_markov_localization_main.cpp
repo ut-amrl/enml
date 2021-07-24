@@ -144,7 +144,7 @@ float kMaxOdometryDeltaAngle = DegToRad(15.0);
 pthread_mutex_t relocalization_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
 // The directory where all the maps are stored.
-const char* maps_dir_ = "maps";
+string maps_dir_ = ros::package::getPath("amrl_maps");
 
 // Directory containing all config files, including `common.lua` and `enml.lua`
 const char* config_dir_ = "config";
@@ -302,7 +302,6 @@ void PublishTrace() {
     trace.push_back(curLoc);
     lastLoc = curLoc;
     initialized = true;
-    printf("Init trace\n");
     return;
   }
   if((curLoc-lastLoc).squaredNorm()>Sq(0.05)){
@@ -518,7 +517,7 @@ void SaveStfs(
   ScopedFile fid(stfs_file, "w");
   fprintf(fid(), "%s\n", map_name.c_str());
   fprintf(fid(), "%lf\n", timestamp);
-  VectorMap map(std::string(maps_dir_) + "/" + map_name + ".txt");
+  VectorMap map(maps_dir_ + "/" + map_name + ".txt");
   if (kDisplaySteps) {
     visualization::ClearVisualizationMsg(visualization_msg_);
     nonblock(true);
@@ -1289,7 +1288,7 @@ void SaveSensorErrors(
     const vector<PointCloudf>& point_clouds,
     const vector<vector<NonMarkovLocalization::ObservationType> >&
         classifications) {
-  VectorMap map(std::string(maps_dir_) + "/" + kMapName + ".txt");
+  VectorMap map(maps_dir_ + "/" + kMapName + ".txt");
   ScopedFile fid("results/sensor_errors.txt", "w");
   printf("Saving sensor errors... ");
   fflush(stdout);
@@ -1863,11 +1862,11 @@ int main(int argc, char** argv) {
   bool return_initial_poses = false;
 
 
-
+  char* user_maps_dir = nullptr;
   static struct poptOption options[] = {
     { "config_dir", 'c', POPT_ARG_STRING, &config_dir_, 1, "Config directory", "STRING"},
     { "robot_config", 'r', POPT_ARG_STRING, &robot_config_, 1, "Robot configuration file", "STRING"},
-    { "maps_dir", 'm', POPT_ARG_STRING, &maps_dir_, 1, "Maps directory", "STRING"},
+    { "maps_dir", 'm', POPT_ARG_STRING, &user_maps_dir, 1, "Maps directory", "STRING"},
     { "debug" , 'd', POPT_ARG_INT, &debug_level_, 1, "Debug level", "NUM" },
     { "bag-file", 'b', POPT_ARG_STRING, &bag_file, 1, "ROS bagfile to use",
         "STRING"},
@@ -1903,6 +1902,10 @@ int main(int argc, char** argv) {
   while((c = popt.getNextOpt()) >= 0){
   }
   
+  if (maps_dir_.empty() && user_maps_dir == nullptr) {
+    fprintf(stderr, "Error: amrl_maps not found, must either specify the maps directory with `--maps`, or add the amrl_maps package to ROS_PACKAGE_PATH\n");
+    exit(1);
+  }
   localization_ = new NonMarkovLocalization(maps_dir_);
   CHECK(LoadConfiguration(&localization_options_));
 
