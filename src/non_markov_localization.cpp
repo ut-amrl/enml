@@ -453,12 +453,21 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
       Rotation2Df(pose_array[2]) *
       Vector2f(localization_options_.sensor_offset.x(),
                localization_options_.sensor_offset.y());
+  float sq_max_observed_range = Sq(0.1);
+  for (size_t j = 0; j < point_cloud.size(); 
+      j += localization_options_.num_skip_readings) {
+    sq_max_observed_range = max<float>(
+        point_cloud[j].squaredNorm(),
+        sq_max_observed_range);
+  }
+  const float ray_cast_range = 
+      min<float>(localization_options_.kMaxRange, sqrt(sq_max_observed_range));
   vector_map_.GetRayToLineCorrespondences(
       sensor_loc,
       pose_array[2],
       point_cloud,
       0.0,
-      localization_options_.kMaxRange,
+      ray_cast_range,
       ray_cast_ptr,
       line_correspondences_ptr);
   CHECK_EQ(line_correspondences.size(), point_cloud.size());
