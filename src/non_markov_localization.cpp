@@ -99,7 +99,7 @@ struct EnmlTiming {
       ceres_iterations(0),
       enml_iterations(0) {}
   ~EnmlTiming() {
-    if (false) {
+    if (true) {
       printf("ENML Iters:%3d Ceres Iters: %3d"
             " LTFs:%6.3f STFs:%6.3f Constraints:%6.3f Solver:%6.3f\n",
             enml_iterations,
@@ -444,6 +444,8 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
     vector<int>* line_correspondences_ptr,
     vector<Line2f>* ray_cast_ptr,
     vector<ObservationType>* observation_classes_ptr) {
+  static CumulativeFunctionTimer ft_(__FUNCTION__);
+  CumulativeFunctionTimer::Invocation invocation(&ft_);
   vector<int>& line_correspondences = *line_correspondences_ptr;
   vector<Line2f>& ray_cast = *ray_cast_ptr;
   vector<ObservationType>& observation_classes = * observation_classes_ptr;
@@ -1064,7 +1066,7 @@ float NonMarkovLocalization::GetLostMetric() const {
 void NonMarkovLocalization::Update() {
   // FunctionTimer ft(__FUNCTION__);
   static const bool debug = false;
-  EnmlTiming timing;
+  static EnmlTiming timing;
   // Accepts:
   //  1. Non-Markov Localization paramters.
   //  2. Vector map.
