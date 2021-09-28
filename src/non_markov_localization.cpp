@@ -1338,7 +1338,7 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
 
   if (localization_options_.log_poses) {
     vector<Pose2Df>& logged_poses = logged_poses_.GetLock();
-    vector<ros::Time> &logged_stamps = logged_stamps_.GetLock();
+    vector<Timestamp> &logged_stamps = logged_stamps_.GetLock();
     logged_poses.insert(logged_poses.end(), poses_.begin(),
                         poses_.begin() + pose_index);
     logged_stamps.insert(logged_stamps.end(), timestamps_.begin(), timestamps_.begin() + pose_index);
@@ -1365,7 +1365,7 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
 
 
 void NonMarkovLocalization::SensorUpdate(
-    const PointCloudf& point_cloud, const NormalCloudf& normal_cloud, const ros::Time &laser_time) {
+    const PointCloudf& point_cloud, const NormalCloudf& normal_cloud, const Timestamp &laser_time) {
   static const bool debug = false;
   const double t_now = GetMonotonicTime();
   const bool has_moved =
@@ -1491,7 +1491,7 @@ void NonMarkovLocalization::AddPose(
     const PointCloudf& point_cloud,
     const NormalCloudf& normal_cloud,
     const Pose2Df& relative_pose,
-    const ros::Time &laser_time) {
+    const Timestamp& laser_time) {
   // Add point_cloud, normal_cloud, relative_pose to pending buffer.
   // Reset distance traversed since last node.
   // If (number of pending nodes > threshold) and (update is not in progress) :
@@ -1592,7 +1592,7 @@ vector<Pose2Df> NonMarkovLocalization::GetLoggedPoses() const {
   return (logged_poses_.Get());
 }
 
-vector<ros::Time> NonMarkovLocalization::GetLoggedStamps() const {
+vector<NonMarkovLocalization::Timestamp> NonMarkovLocalization::GetLoggedStamps() const {
     return (logged_stamps_.Get());
 }
 
