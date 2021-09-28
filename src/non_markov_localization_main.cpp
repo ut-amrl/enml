@@ -501,17 +501,17 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   return true;
 }
 
-void OutputPosesAndStamps(const std::string &poses_file,
-                          const std::vector<Pose2Df> &poses,
-                          const std::vector<NonMarkovLocalization::Timestamp> &stamps) {
+void OutputPosesAndStamps(const std::string& poses_file,
+                          const std::vector<Pose2Df>& poses,
+                          const std::vector<timespec>& stamps) {
     std::ofstream csv_file(poses_file, std::ios::trunc);
     csv_file << "secs" << ", " << "nsecs" << ", " << "transl_x"
              << ", " << "transl_y" << ", " << "theta" << "\n";
 
     for (size_t i = 0; i < poses.size(); i++) {
         Pose2Df pose = poses[i];
-        NonMarkovLocalization::Timestamp stamp = stamps[i];
-        csv_file << stamp.first << ", " << stamp.second << ", " << pose.translation.x()
+        timespec stamp = stamps[i];
+        csv_file << stamp.tv_sec << ", " << stamp.tv_nsec << ", " << pose.translation.x()
                  << ", " << pose.translation.y() << ", " << pose.angle << "\n";
     }
 
@@ -1427,7 +1427,10 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     if (debug_level_ > 1) {
       printf("Sensor update, t=%f\n", laser_message.header.stamp.toSec());
     }
-    localization_->SensorUpdate(point_cloud, normal_cloud, std::make_pair(laser_message.header.stamp.sec, laser_message.header.stamp.nsec));
+    timespec timestamp;
+    timestamp.tv_sec = laser_message.header.stamp.sec;
+    timestamp.tv_nsec = laser_message.header.stamp.nsec;
+    localization_->SensorUpdate(point_cloud, normal_cloud, timestamp);
   }
   last_laser_scan_ = laser_message;
 }
@@ -1632,7 +1635,7 @@ void PlayBagFile(const string& bag_file,
                            kMapName);
 
   rosbag::Bag bag;
-  NonMarkovLocalization::Timestamp first_laser_stamp;
+  timespec first_laser_stamp;
   bool had_laser_stamp_yet = false;
   if (!quiet_) printf("Processing bag file %s\n", bag_file.c_str());
   bag.open(bag_file.c_str(), rosbag::bagmode::Read);
@@ -1722,7 +1725,8 @@ void PlayBagFile(const string& bag_file,
           message.getTopic() == CONFIG_scan_topic) {
         ++num_laser_scans;
         if (!had_laser_stamp_yet) {
-            first_laser_stamp = std::make_pair(laser_message->header.stamp.sec, laser_message->header.stamp.nsec);
+            first_laser_stamp.tv_sec = laser_message->header.stamp.sec;
+            first_laser_stamp.tv_nsec = laser_message->header.stamp.nsec;
             had_laser_stamp_yet = true;
         }
         LaserCallback(*laser_message);
@@ -1783,9 +1787,9 @@ void PlayBagFile(const string& bag_file,
       std::vector<Pose2Df> poses_to_out;
       poses_to_out.emplace_back(Pose2Df(0, 0, 0));
       poses_to_out.insert(poses_to_out.end(), logged_poses.begin(), logged_poses.end());
-      std::vector<NonMarkovLocalization::Timestamp> stamps_to_out;
+      std::vector<timespec> stamps_to_out;
       stamps_to_out.emplace_back(first_laser_stamp);
-      std::vector<NonMarkovLocalization::Timestamp> logged_stamps = localization_->GetLoggedStamps();
+      std::vector<timespec> logged_stamps = localization_->GetLoggedStamps();
       stamps_to_out.insert(stamps_to_out.end(), logged_stamps.begin(), logged_stamps.end());
       OutputPosesAndStamps(std::string(keyframes_file), poses_to_out, stamps_to_out);
   }
