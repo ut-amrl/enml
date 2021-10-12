@@ -1979,7 +1979,7 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
   Subscriber initialize_subscriber =
-      node->subscribe("/initialpose_a1", 1, InitializeCallback); // /set_pose
+      node->subscribe("/initialpose_a1_121", 1, InitializeCallback); // /set_pose
 
   ClearDisplay();
   PublishDisplay();
@@ -2116,7 +2116,7 @@ int main(int argc, char** argv) {
   }
   pose_publisher_ =
       ros_node.advertise<geometry_msgs::PoseStamped>(
-      "global_pose_a1", 1, true);
+      "global_pose_a1_121", 1, true);
 
   pose_msg_.pose.orientation.w=1.0;
 
