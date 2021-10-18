@@ -1636,6 +1636,8 @@ void PlayBagFile(const string& bag_file,
 
   rosbag::Bag bag;
   timespec first_laser_stamp;
+  first_laser_stamp.tv_sec = 0;
+  first_laser_stamp.tv_nsec = 0;
   bool had_laser_stamp_yet = false;
   if (!quiet_) printf("Processing bag file %s\n", bag_file.c_str());
   bag.open(bag_file.c_str(), rosbag::bagmode::Read);
