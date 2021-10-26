@@ -1915,7 +1915,7 @@ void InitializeCallback(const geometry_msgs::PoseWithCovarianceStamped& msg) {
   //From this intiial_pose we have to set the 
   double yaw = atan2(2.0*(msg.pose.pose.orientation.y*msg.pose.pose.orientation.z + msg.pose.pose.orientation.w*msg.pose.pose.orientation.x), msg.pose.pose.orientation.w*msg.pose.pose.orientation.w - msg.pose.pose.orientation.x*msg.pose.pose.orientation.x - msg.pose.pose.orientation.y*msg.pose.pose.orientation.y + msg.pose.pose.orientation.z*msg.pose.pose.orientation.z);
   localization_->Initialize(
-                        Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "AHG2");
+                        Pose2Df(yaw, Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y)), "ASE4");
   amrl_msgs::Localization2DMsg loc_msg_local;
   loc_msg_local.header = msg.header;
   loc_msg_local.pose.x = msg.pose.pose.position.x;
