@@ -116,6 +116,7 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
 geometry_msgs::PoseStamped pose_msg_;     //added by mk, ryan
+geometry_msgs::PoseStamped pose_msg_en;     //added by mk, ryan
 //geometry_msgs::PoseWithCovarianceStamped pose_msg_;     //added by mk, ryan
 
 // ROS message for visualization with WebViz.
@@ -190,6 +191,7 @@ ros::Publisher visualization_publisher_;
 // ROS publisher to publish the latest robot localization.
 ros::Publisher localization_publisher_;
 ros::Publisher pose_publisher_;
+ros::Publisher pose_publisher_2;
 tf2_ros::Buffer tf_buffer;
 tf2_ros::TransformListener* tf2_listener; 
 geometry_msgs::TransformStamped map_en_to_map;
@@ -277,7 +279,7 @@ void PublishLocation(
 
   //-------------------------
   //
-  if(publishiter>5){
+  if(publishiter>3){
 
       try{
           map_en_to_map= tf_buffer.lookupTransform("map_en", "map", ros::Time(0), ros::Duration(1.0) );
@@ -291,11 +293,19 @@ void PublishLocation(
 
 
       geometry_msgs::PoseStamped tmp_pose;     //added by mk, ryan
-      tmp_pose.header.stamp.fromSec(GetWallTime());
+      //tmp_pose.header.stamp.fromSec(GetWallTime());
+      tmp_pose.header.stamp= ros::Time::now();
       tmp_pose.header.frame_id= "map_en";
       tmp_pose.pose.position.x = x;
       tmp_pose.pose.position.y = y;
       //printf("map-en: x: %.2lf, y: %.2lf \n", x, y);
+      //
+      pose_msg_en.header.stamp.fromSec(GetWallTime());
+      pose_msg_en.header.frame_id= "map_en";
+      pose_msg_en.pose=tmp_pose.pose;
+      pose_publisher_2.publish(pose_msg_en);
+
+
 
       geometry_msgs::Quaternion q;
 
@@ -332,7 +342,8 @@ void PublishLocation(
       }
 
       //printf("----- map: x: %.2lf, y: %.2lf", pose_out.pose.position.x, pose_out.pose.position.y);
-      pose_msg_.header.stamp.fromSec(GetWallTime());
+      //pose_msg_.header.stamp.fromSec(GetWallTime());
+      pose_msg_.header.stamp= ros::Time::now();
       pose_msg_.header.frame_id= "map";
       pose_msg_.pose=pose_out.pose;
       //pose_msg_.pose.pose.position.x = tmp_pose.x;
@@ -341,20 +352,24 @@ void PublishLocation(
                             //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                             //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                             //0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.06853891945200942};
+
+
       pose_publisher_.publish(pose_msg_);
-
-
       publishiter=0;
+
+     //static tf::TransformBroadcaster br;
+      //tf::Transform transform;
+      //transform.setOrigin(tf::Vector3(pose_msg_.pose.position.x, pose_msg_.pose.position.y,0.0));
+      //tf::Quaternion quat(pose_msg_.pose.orientation.x, pose_msg_.pose.orientation.y, pose_msg_.pose.orientation.z, pose_msg_.pose.orientation.w);
+      //transform.setRotation(quat);
+      //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base"));
+  
   }
 
   publishiter++;
 
-  //static tf::TransformBroadcaster br;
-  //tf::Transform transform;
-  //transform.setOrigin(tf::Vector3(pose_msg_.pose.position.x, pose_msg_.pose.position.y,0.0));
-  //tf::Quaternion quat(pose_msg_.pose.orientation.x, pose_msg_.pose.orientation.y, pose_msg_.pose.orientation.z, pose_msg_.pose.orientation.w);
-  //transform.setRotation(quat);
-  //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base"));
+ //ROS_INFO("send_transform");
+
 
 
   //-----------------------
@@ -2118,7 +2133,13 @@ int main(int argc, char** argv) {
       ros_node.advertise<geometry_msgs::PoseStamped>(
       "global_pose_a1_950", 1, true);
 
+ pose_publisher_2 =
+      ros_node.advertise<geometry_msgs::PoseStamped>(
+      "global_pose_a1_950_en", 1, true);
+
+
   pose_msg_.pose.orientation.w=1.0;
+  pose_msg_en.pose.orientation.w=1.0;
 
   tf2_listener= new tf2_ros::TransformListener(tf_buffer);
 
