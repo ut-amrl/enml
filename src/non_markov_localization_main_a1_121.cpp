@@ -51,6 +51,8 @@
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
 #include "tf/transform_broadcaster.h"
+#include "geometry_msgs/TransformStamped.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -305,8 +307,6 @@ void PublishLocation(
       pose_msg_en.pose=tmp_pose.pose;
       pose_publisher_2.publish(pose_msg_en);
 
-
-
       geometry_msgs::Quaternion q;
 
       double temp_roll=0.0;
@@ -357,12 +357,34 @@ void PublishLocation(
       pose_publisher_.publish(pose_msg_);
       publishiter=0;
 
+      /*
+      static tf2_ros::TransformBroadcaster br;
+      geometry_msgs::TransformStamped transformStamped;
+
+      //transformStamped.header.stamp = ros::Time::now();
+      transformStamped.header.stamp.fromSec(GetWallTime()); 
+      transformStamped.header.frame_id = "map_en";
+      transformStamped.child_frame_id = "base";
+      transformStamped.transform.translation.x = pose_msg_en.pose.position.x;
+      transformStamped.transform.translation.y = pose_msg_en.pose.position.y;
+      transformStamped.transform.translation.z = 0.0;
+      tf2::Quaternion q_;
+      q_.setRPY(0, 0, angle);
+      transformStamped.transform.rotation.x = q_.x();
+      transformStamped.transform.rotation.y = q_.y();
+      transformStamped.transform.rotation.z = q_.z();
+      transformStamped.transform.rotation.w = q_.w();
+
+      br.sendTransform(transformStamped);
+      */
+
+
      //static tf::TransformBroadcaster br;
       //tf::Transform transform;
-      //transform.setOrigin(tf::Vector3(pose_msg_.pose.position.x, pose_msg_.pose.position.y,0.0));
-      //tf::Quaternion quat(pose_msg_.pose.orientation.x, pose_msg_.pose.orientation.y, pose_msg_.pose.orientation.z, pose_msg_.pose.orientation.w);
+      //transform.setOrigin(tf::Vector3(pose_msg_en.pose.position.x, ppose_msg_en.pose.position.y,0.0));
+      //tf::Quaternion quat(pose_msg_en.pose.orientation.x, pose_msg_en.pose.orientation.y, pose_msg_en.pose.orientation.z, pose_msg_en.pose.orientation.w);
       //transform.setRotation(quat);
-      //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base"));
+      //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base"));
   
   }
 
