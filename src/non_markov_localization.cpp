@@ -1365,15 +1365,18 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
 
   if (localization_options_.log_poses) {
     vector<Pose2Df>& logged_poses = logged_poses_.GetLock();
+    vector<timespec> &logged_stamps = logged_stamps_.GetLock();
     logged_poses.insert(logged_poses.end(), poses_.begin(),
                         poses_.begin() + pose_index);
-    // logged_poses_.SetUnlock(logged_poses);
+    logged_stamps.insert(logged_stamps.end(), timestamps_.begin(), timestamps_.begin() + pose_index);
+    logged_stamps_.Unlock();
     logged_poses_.Unlock();
   }
 
   // Need to trim the nodes list to the latest episode.
   pose_ids_.erase(pose_ids_.begin(), pose_ids_.begin() + pose_index);
   poses_.erase(poses_.begin(), poses_.begin() + pose_index);
+  timestamps_.erase(timestamps_.begin(), timestamps_.begin() + pose_index);
   kdtrees_.erase(kdtrees_.begin(), kdtrees_.begin() + pose_index);
   normal_clouds_.erase(normal_clouds_.begin(),
                          normal_clouds_.begin() + pose_index);
@@ -1389,7 +1392,7 @@ void NonMarkovLocalization::TrimEpisode(const int pose_index) {
 
 
 void NonMarkovLocalization::SensorUpdate(
-    const PointCloudf& point_cloud, const NormalCloudf& normal_cloud) {
+    const PointCloudf& point_cloud, const NormalCloudf& normal_cloud, const timespec& laser_time) {
   static const bool debug = false;
   const double t_now = GetMonotonicTime();
   const bool has_moved =
@@ -1400,7 +1403,7 @@ void NonMarkovLocalization::SensorUpdate(
       pending_translation_ > localization_options_.minimum_node_translation ||
       force_update) {
     // Add to Pending nodes.
-    AddPose(point_cloud, normal_cloud, pending_relative_pose_);
+    AddPose(point_cloud, normal_cloud, pending_relative_pose_, laser_time);
     t_last_update_ = t_now;
   } else if (debug) {
     printf("Ignoring sensor data, trans:%f rot:%f\n",
@@ -1422,6 +1425,7 @@ void NonMarkovLocalization::OdometryUpdate(
 void NonMarkovLocalization::ClearPoses() {
   pose_array_.clear();
   poses_.clear();
+  timestamps_.clear();
   pose_ids_.clear();
   point_clouds_.clear();
   normal_clouds_.clear();
@@ -1435,6 +1439,7 @@ void NonMarkovLocalization::ClearPoses() {
   pending_normal_clouds_.clear();
   pending_point_clouds_.clear();
   pending_relative_poses_.clear();
+  pending_stamps_.clear();
   latest_pending_pose_.Set(Pose2Df(0.0, Vector2f(0.0, 0.0)));
   latest_mle_pose_.Set(Pose2Df(0.0, Vector2f(0.0, 0.0)));
 }
@@ -1487,6 +1492,7 @@ void NonMarkovLocalization::AddPendingPoseNodes()
   for (size_t i = 0; i < pending_relative_poses_.size(); ++i) {
     latest_pose.ApplyPose(pending_relative_poses_[i]);
     poses_.push_back(latest_pose);
+    timestamps_.push_back(pending_stamps_[i]);
   }
   latest_mle_pose_.SetUnlock(latest_pose);
 
@@ -1505,12 +1511,14 @@ void NonMarkovLocalization::AddPendingPoseNodes()
   pending_point_clouds_.clear();
   pending_normal_clouds_.clear();
   pending_relative_poses_.clear();
+  pending_stamps_.clear();
 }
 
 void NonMarkovLocalization::AddPose(
     const PointCloudf& point_cloud,
     const NormalCloudf& normal_cloud,
-    const Pose2Df& relative_pose) {
+    const Pose2Df& relative_pose,
+    const timespec& laser_time) {
   // Add point_cloud, normal_cloud, relative_pose to pending buffer.
   // Reset distance traversed since last node.
   // If (number of pending nodes > threshold) and (update is not in progress) :
@@ -1521,6 +1529,7 @@ void NonMarkovLocalization::AddPose(
   pending_point_clouds_.push_back(point_cloud);
   pending_normal_clouds_.push_back(normal_cloud);
   pending_relative_poses_.push_back(relative_pose);
+  pending_stamps_.push_back(laser_time);
   CHECK_GT(pending_point_clouds_.size(), 0);
 
   Pose2Df latest_pending_pose = latest_pending_pose_.GetLock();
@@ -1608,6 +1617,10 @@ bool NonMarkovLocalization::RunningSolver() const {
 
 vector<Pose2Df> NonMarkovLocalization::GetLoggedPoses() const {
   return (logged_poses_.Get());
+}
+
+vector<timespec> NonMarkovLocalization::GetLoggedStamps() const {
+    return (logged_stamps_.Get());
 }
 
 std::vector<int> NonMarkovLocalization::GetLoggedEpisodeLengths() const {

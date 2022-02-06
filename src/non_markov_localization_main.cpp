@@ -501,6 +501,23 @@ bool LoadConfiguration(NonMarkovLocalization::LocalizationOptions* options) {
   return true;
 }
 
+void OutputPosesAndStamps(const std::string& poses_file,
+                          const std::vector<Pose2Df>& poses,
+                          const std::vector<timespec>& stamps) {
+    std::ofstream csv_file(poses_file, std::ios::trunc);
+    csv_file << "secs" << ", " << "nsecs" << ", " << "transl_x"
+             << ", " << "transl_y" << ", " << "theta" << "\n";
+
+    for (size_t i = 0; i < poses.size(); i++) {
+        Pose2Df pose = poses[i];
+        timespec stamp = stamps[i];
+        csv_file << stamp.tv_sec << ", " << stamp.tv_nsec << ", " << pose.translation.x()
+                 << ", " << pose.translation.y() << ", " << pose.angle << "\n";
+    }
+
+    csv_file.close();
+}
+
 void SaveStfs(
     const string& map_name,
     const vector<Pose2Df>& poses,
@@ -1410,7 +1427,10 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     if (debug_level_ > 1) {
       printf("Sensor update, t=%f\n", laser_message.header.stamp.toSec());
     }
-    localization_->SensorUpdate(point_cloud, normal_cloud);
+    timespec timestamp;
+    timestamp.tv_sec = laser_message.header.stamp.sec;
+    timestamp.tv_nsec = laser_message.header.stamp.nsec;
+    localization_->SensorUpdate(point_cloud, normal_cloud, timestamp);
   }
   last_laser_scan_ = laser_message;
 }
@@ -1598,7 +1618,8 @@ void PlayBagFile(const string& bag_file,
                  bool use_point_constraints,
                  double time_skip,
                  ros::NodeHandle* node_handle,
-                 double* observation_error_ptr) {
+                 double* observation_error_ptr,
+                 char* keyframes_file) {
   const bool compute_error = (observation_error_ptr != NULL);
   double& observation_error = *observation_error_ptr;
   double num_observed_points = 0.0;
@@ -1614,6 +1635,10 @@ void PlayBagFile(const string& bag_file,
                            kMapName);
 
   rosbag::Bag bag;
+  timespec first_laser_stamp;
+  first_laser_stamp.tv_sec = 0;
+  first_laser_stamp.tv_nsec = 0;
+  bool had_laser_stamp_yet = false;
   if (!quiet_) printf("Processing bag file %s\n", bag_file.c_str());
   bag.open(bag_file.c_str(), rosbag::bagmode::Read);
   const double t_start = GetMonotonicTime();
@@ -1701,6 +1726,11 @@ void PlayBagFile(const string& bag_file,
       if (laser_message != NULL &&
           message.getTopic() == CONFIG_scan_topic) {
         ++num_laser_scans;
+        if (!had_laser_stamp_yet) {
+            first_laser_stamp.tv_sec = laser_message->header.stamp.sec;
+            first_laser_stamp.tv_nsec = laser_message->header.stamp.nsec;
+            had_laser_stamp_yet = true;
+        }
         LaserCallback(*laser_message);
         while(localization_->RunningSolver()) {
           Sleep(0.001);
@@ -1754,6 +1784,17 @@ void PlayBagFile(const string& bag_file,
         process_time, bag_duration, bag_duration / process_time);
   printf("%d laser scans, %lu logged poses\n",
         num_laser_scans, logged_poses.size());
+
+  if (keyframes_file != nullptr) {
+      std::vector<Pose2Df> poses_to_out;
+      poses_to_out.emplace_back(Pose2Df(0, 0, 0));
+      poses_to_out.insert(poses_to_out.end(), logged_poses.begin(), logged_poses.end());
+      std::vector<timespec> stamps_to_out;
+      stamps_to_out.emplace_back(first_laser_stamp);
+      std::vector<timespec> logged_stamps = localization_->GetLoggedStamps();
+      stamps_to_out.insert(stamps_to_out.end(), logged_stamps.begin(), logged_stamps.end());
+      OutputPosesAndStamps(std::string(keyframes_file), poses_to_out, stamps_to_out);
+  }
 
   if (statistical_test_index_ >= 0) {
     const string file_name = StringPrintf(
@@ -1954,7 +1995,7 @@ int main(int argc, char** argv) {
 
   if (bag_file != NULL) {
     PlayBagFile(
-        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL);
+        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL, keyframes_file);
   } else {
     OnlineLocalize(!disable_stfs, &ros_node);
   }
