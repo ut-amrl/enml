@@ -1371,7 +1371,7 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
   if ((new_pos - last_pos).squaredNorm() < Sq(kMaxDist)) {
     StandardOdometryCallback(last_msg_, msg);
   } else if (debug_level_ > 0) {
-    printf("\nWARNING: Large odometry change (%.3f) ignored!\n\n", 
+    printf("\nWARNING: Large odometry change (%.3f) ignored!\n\n",
         (new_pos - last_pos).norm());
   }
   last_pos = new_pos;
@@ -1703,7 +1703,7 @@ void PlayBagFile(const string& bag_file,
         ++num_laser_scans;
         LaserCallback(*laser_message);
         while(localization_->RunningSolver()) {
-          Sleep(0.01);
+          Sleep(0.001);
         }
         last_laser_scan = *laser_message;
         last_laser_pose = localization_->GetLatestPose();
@@ -1782,6 +1782,20 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
   localization_publisher_amrl_.publish(msg);
   localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(msg));
+
+  if (false) {
+    const string map_file = StringPrintf(
+        "%s/%s/%s.vectormap.txt",
+        maps_dir_.c_str(), msg.map.c_str(), msg.map.c_str());
+    VectorMap map(map_file);
+    const Vector2f d(1, 1);
+    for (const Line2f& l : map.lines) {
+      visualization::DrawLine(l.p0 + d, l.p1 + d, 0xFFFFc0c0, visualization_msg_);
+    }
+    map.Save(map_file);
+    PublishDisplay();
+    ClearDisplay();
+  }
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1901,7 +1915,7 @@ int main(int argc, char** argv) {
   int c;
   while((c = popt.getNextOpt()) >= 0){
   }
-  
+
   if (maps_dir_.empty() && user_maps_dir == nullptr) {
     fprintf(stderr, "Error: amrl_maps not found, must either specify the maps directory with `--maps`, or add the amrl_maps package to ROS_PACKAGE_PATH\n");
     exit(1);

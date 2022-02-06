@@ -7,10 +7,10 @@ RobotConfig = {
 };
 
 enml = {
-  map_name = "AHG2";
+  map_name = "UT_Campus";
   starting_loc_x = 4.8;
-  starting_loc_y = 74.4;
-  starting_angle = deg2rad(0.0);
+  starting_loc_y = 174.4;
+  starting_angle = deg2rad(-90.0);
 
   -- Hokuyo UST-10lx Sensor parameters.
   laser_std_dev = 0.05;

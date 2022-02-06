@@ -12,10 +12,10 @@ enml = {
   -- DEFAULT STARTING LOCATION
   -- On the cobblestone next to the GDC door closest to the lab,
   -- right next to grass, on the side with the lamp post and facing Speedway.
-  map_name = "AHG2";
-  starting_loc_x = 114.067214966;
-  starting_loc_y = -251.863693237;
-  starting_angle = deg2rad(-175);
+  map_name = "UT_Campus";
+  starting_loc_x = 131;
+  starting_loc_y = -245;
+  starting_angle = deg2rad(-85);
 
   -- VLP16 Sensor parameters.
   laser_std_dev = 0.01;
@@ -76,6 +76,6 @@ enml = {
   num_repeat_iterations = 1;
   max_repeat_iterations = 3;
   return_jacobian = false;
-  num_threads = 8;
+  num_threads = 28;
   limit_history = true;
 };

@@ -85,29 +85,46 @@ typedef Eigen::Translation<float, 2> Translation2Df;
 namespace {
 
 struct EnmlTiming {
-  double find_ltfs;
-  double find_stfs;
-  double add_constraints;
-  double solver;
-  int ceres_iterations;
-  int enml_iterations;
-  EnmlTiming() :
-      find_ltfs(0),
-      find_stfs(0),
-      add_constraints(0),
-      solver(0),
-      ceres_iterations(0),
-      enml_iterations(0) {}
+  double find_ltfs = 0.0;
+  double find_stfs = 0.0;
+  double add_constraints = 0.0;
+  double solver = 0.0;
+  double update = 0.0;
+  double residuals = 0.0;
+  double jacobians = 0.0;
+  double linear_solver = 0.0;
+  double preprocessor = 0.0;
+  int ceres_iterations = 0;
+  int enml_iterations = 0;
+  string ceres_full_report;
+  EnmlTiming() {}
   ~EnmlTiming() {
     if (true) {
-      printf("ENML Iters:%3d Ceres Iters: %3d"
-            " LTFs:%6.3f STFs:%6.3f Constraints:%6.3f Solver:%6.3f\n",
+      printf("========================================================\n");
+      printf("  Ceres Full Report:\n%s\n", ceres_full_report.c_str());
+      printf("========================================================\n");
+      printf("ENML Iters:                          %6d\n"
+             "  Ceres Iters:                       %6d\n"
+             "  Find LTFs:                         %6.3f\n"
+             "  Find STFs:                         %6.3f\n"
+             "  Add Constraints:                   %6.3f\n"
+             "  Ceres Solve:                       %6.3f\n"
+             "    Preprocessor:                    %6.3f\n"
+             "    Residual only eval:              %6.3f\n"
+             "    Jacobian & residual eval:        %6.3f\n"
+             "    Linear solver:                   %6.3f\n"
+             "  Total Update:                      %6.3f\n",
             enml_iterations,
             ceres_iterations,
             find_ltfs,
             find_stfs,
             add_constraints,
-            solver);
+            solver,
+            preprocessor,
+            residuals,
+            jacobians,
+            linear_solver,
+            update);
     }
   }
 };
@@ -129,7 +146,9 @@ void SetSolverOptions(
     ceres::Solver::Options* options_ptr) {
   ceres::Solver::Options& solver_options = *options_ptr;
 
-  solver_options.linear_solver_type = ceres::SPARSE_SCHUR;
+  // solver_options.linear_solver_type = ceres::SPARSE_SCHUR;
+  solver_options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+  solver_options.dense_linear_algebra_library_type = ceres::EIGEN;
   solver_options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
   solver_options.minimizer_type = ceres::TRUST_REGION;
 
@@ -454,13 +473,13 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
       Vector2f(localization_options_.sensor_offset.x(),
                localization_options_.sensor_offset.y());
   float sq_max_observed_range = Sq(0.1);
-  for (size_t j = 0; j < point_cloud.size(); 
+  for (size_t j = 0; j < point_cloud.size();
       j += localization_options_.num_skip_readings) {
     sq_max_observed_range = max<float>(
         point_cloud[j].squaredNorm(),
         sq_max_observed_range);
   }
-  const float ray_cast_range = 
+  const float ray_cast_range =
       min<float>(localization_options_.kMaxRange, sqrt(sq_max_observed_range));
   vector_map_.GetRayToLineCorrespondences(
       sensor_loc,
@@ -473,7 +492,7 @@ void NonMarkovLocalization::FindSinglePoseLtfCorrespondences(
   CHECK_EQ(line_correspondences.size(), point_cloud.size());
   int num_ltfs = 0;
   int num_vltfs = 0;
-  for (size_t j = 0; j < point_cloud.size(); 
+  for (size_t j = 0; j < point_cloud.size();
       j += localization_options_.num_skip_readings) {
     const int correspondence = line_correspondences[j];
     if (correspondence >= 0) {
@@ -1076,6 +1095,7 @@ void NonMarkovLocalization::Update() {
   // FunctionTimer ft(__FUNCTION__);
   static const bool debug = false;
   static EnmlTiming timing;
+  const double t_update_start = GetMonotonicTime();
   // Accepts:
   //  1. Non-Markov Localization paramters.
   //  2. Vector map.
@@ -1219,11 +1239,16 @@ void NonMarkovLocalization::Update() {
         covariances[i](1, 1) = values[4];
       }
     }
+    timing.residuals += summary.residual_evaluation_time_in_seconds;
+    timing.jacobians += summary.jacobian_evaluation_time_in_seconds;
+    timing.preprocessor += summary.preprocessor_time_in_seconds;
+    timing.linear_solver += summary.linear_solver_time_in_seconds;
     if (summary.termination_type == ceres::FAILURE ||
         summary.termination_type == ceres::USER_FAILURE) {
       std::cout << "\nEnML Ceres failure, report follows:\n"
                 << summary.FullReport();
     }
+    timing.ceres_full_report = summary.FullReport();
     if (converged || i + 1 == localization_options_.kMaxRepeatIterations) {
       // This is the final iteration of the EnML solver.
       ComputeLostMetric();
@@ -1253,6 +1278,8 @@ void NonMarkovLocalization::Update() {
     TrimEpisode(episode_start);
   }
   latest_mle_pose_.Set(poses_.back());
+  const double t_update_end = GetMonotonicTime();
+  timing.update += (t_update_end - t_update_start);
 }
 
 void NonMarkovLocalization::SaveEpisodeData() {
