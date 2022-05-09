@@ -148,7 +148,7 @@ void SetSolverOptions(
 
   // solver_options.linear_solver_type = ceres::SPARSE_SCHUR;
   solver_options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-  solver_options.dense_linear_algebra_library_type = ceres::EIGEN;
+  solver_options.dense_linear_algebra_library_type = ceres::LAPACK;
   solver_options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
   solver_options.minimizer_type = ceres::TRUST_REGION;
 

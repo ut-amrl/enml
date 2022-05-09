@@ -113,6 +113,9 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
 
+// ROS smoothed odometry message.
+nav_msgs::Odometry odometry_msg_;
+
 // ROS message for visualization with WebViz.
 amrl_msgs::VisualizationMsg visualization_msg_;
 
@@ -150,7 +153,7 @@ string maps_dir_ = ros::package::getPath("amrl_maps");
 const char* config_dir_ = "config";
 
 // name of the robot configuration file in config_dir_ to use
-const char* robot_config_ = "robot.lua";
+const char* robot_config_ = "icra2022_nav_challenge.lua";
 
 // Index of test set. This will determine which file the results of the test are
 // saved to.
@@ -170,8 +173,8 @@ static const uint32_t kOdometryColor = 0x70FF0000;
 // static const uint32_t kTrajectoryColor = 0xFFC0C0C0;
 static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;
 static const uint32_t kLtfPointColor = 0xFFFF7700;
-static const uint32_t kStfPointColor = 0xFF994CD9;
-static const uint32_t kStfCorrespondenceColor = 0x7F994CD9;
+static const uint32_t kStfPointColor = 0x994CD9;
+static const uint32_t kStfCorrespondenceColor = 0x994CD9;
 static const uint32_t kDfPointColor  = 0x7F37B30C;
 
 bool run_ = true;
@@ -185,6 +188,9 @@ ros::Publisher localization_publisher_amrl_;
 
 // ROS publisher to publish the latest robot localization w/ ros geometry_msgs.
 ros::Publisher localization_publisher_ros_;
+
+// ROS publisher to publish smoothed odometry.
+ros::Publisher odometry_publisher_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -282,7 +288,24 @@ void PublishLocation(
   localization_msg_.pose.y = y;
   localization_msg_.pose.theta = angle;
   localization_publisher_amrl_.publish(localization_msg_);
-  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(localization_msg_));
+  localization_publisher_ros_.publish(
+      ConvertAMRLmsgToROSmsg(localization_msg_));
+
+  odometry_msg_.header.stamp = ros::Time::now();
+  odometry_msg_.pose.pose.position.x = x;
+  odometry_msg_.pose.pose.position.y = y;
+  odometry_msg_.pose.pose.position.z = 0.0;
+  odometry_msg_.pose.pose.orientation.w = cos(0.5 * angle);
+  odometry_msg_.pose.pose.orientation.x = 0.0;
+  odometry_msg_.pose.pose.orientation.y = 0.0;
+  odometry_msg_.pose.pose.orientation.z = sin(0.5 * angle);
+  for (int i = 0; i < 36; ++i) {
+    odometry_msg_.pose.covariance[i] = 0.0;
+  }
+  for (int i = 0; i < 6; ++i) {
+    odometry_msg_.pose.covariance[i + i * 6] = 1.0;
+  }
+  odometry_publisher_.publish(odometry_msg_);
 }
 
 void PublishLocation() {
@@ -1896,6 +1919,8 @@ void HandleStop(int i) {
 
 void InitializeMessages() {
   ros_helpers::InitRosHeader("map", &localization_msg_.header);
+  ros_helpers::InitRosHeader("odom", &odometry_msg_.header);
+  odometry_msg_.child_frame_id = "base_link";
 }
 
 int main(int argc, char** argv) {
@@ -1986,6 +2011,8 @@ int main(int argc, char** argv) {
   localization_publisher_ros_ =
       ros_node.advertise<geometry_msgs::PoseStamped>(
       "localization_ros", 1, true);
+  odometry_publisher_ =
+      ros_node.advertise<nav_msgs::Odometry>("enml_odometry", 1, true);
   {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(
