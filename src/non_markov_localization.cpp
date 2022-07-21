@@ -35,14 +35,14 @@
 #include "ceres/ceres.h"
 #include "ceres/dynamic_autodiff_cost_function.h"
 #include "perception_2d.h"
-#include "amrl_shared_lib/util/helpers.h"
-#include "amrl_shared_lib/util/pthread_utils.h"
-#include "amrl_shared_lib/util/random.h"
-#include "amrl_shared_lib/util/timer.h"
-#include "amrl_shared_lib/math/geometry.h"
-#include "amrl_shared_lib/math/line2d.h"
-#include "amrl_shared_lib/math/math_util.h"
-#include "amrl_shared_lib/math/statistics.h"
+#include "shared/util/helpers.h"
+#include "shared/util/pthread_utils.h"
+#include "shared/util/random.h"
+#include "shared/util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/line2d.h"
+#include "shared/math/math_util.h"
+#include "shared/math/statistics.h"
 #include "residual_functors.h"
 #include "vector_map/vector_map.h"
 
@@ -357,7 +357,7 @@ void NonMarkovLocalization::AddSTFConstraints(ceres::Problem* problem) {
 
 void NonMarkovLocalization::FindSTFCorrespondences(
     const size_t min_poses, const size_t max_poses) {
-  static const size_t kMinInterPoseCorrespondence = 10;
+  static const size_t kMinInterPoseCorrespondence = 30;
   const float min_cosine_angle = cos(localization_options_.kMaxStfAngleError);
   // const float kMaxPoseSqDistance = sq(100.0);
   static const int kPointMatchSeparation = 4;

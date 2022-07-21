@@ -47,21 +47,24 @@
 
 #include "geometry_msgs/Quaternion.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/PoseArray.h"
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
+//#include "/home/mk/workspaces/test_ws/devel/include/amrl_msgs/Localization2DMsg.h"
+//#include "/home/mk/workspaces/test_ws/devel/include/amrl_msgs/VisualizationMsg.h"
 #include "tf/transform_broadcaster.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
 #include "popt_pp/popt_pp.h"
-#include "amrl_shared_lib/math/geometry.h"
-#include "amrl_shared_lib/math/math_util.h"
-#include "amrl_shared_lib/ros/ros_helpers.h"
-#include "amrl_shared_lib/util/helpers.h"
-#include "amrl_shared_lib/util/pthread_utils.h"
-#include "amrl_shared_lib/util/random.h"
-#include "amrl_shared_lib/util/timer.h"
+#include "shared/math/geometry.h"
+#include "shared/math/math_util.h"
+#include "shared/ros/ros_helpers.h"
+#include "shared/util/helpers.h"
+#include "shared/util/pthread_utils.h"
+#include "shared/util/random.h"
+#include "shared/util/timer.h"
 #include "vector_map/vector_map.h"
 #include "residual_functors.h"
 #include "config_reader/config_reader.h"
@@ -117,6 +120,7 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 amrl_msgs::Localization2DMsg localization_msg_;
 //geometry_msgs::PoseStamped pose_msg_;     //added by mk, ryan
 geometry_msgs::PoseWithCovarianceStamped pose_msg_;     //added by mk, ryan
+geometry_msgs::PoseArray posearray_msg_;     //added by mk, ryan
 
 // ROS message for visualization with WebViz.
 amrl_msgs::VisualizationMsg visualization_msg_;
@@ -189,6 +193,7 @@ ros::Publisher visualization_publisher_;
 // ROS publisher to publish the latest robot localization.
 ros::Publisher localization_publisher_;
 ros::Publisher pose_publisher_;
+ros::Publisher stf_poses_publisher_;
 tf2_ros::Buffer tf_buffer;
 tf2_ros::TransformListener* tf2_listener; 
 geometry_msgs::TransformStamped map_en_to_map;
@@ -264,6 +269,26 @@ void ApplyNoiseModel(
   *da_n = delta_noisy(2);
 }
 
+
+void PublishSTF(const std::vector<Eigen::Vector2f>& stfpts)
+{
+
+    geometry_msgs::PoseArray pose_arry_msg;
+    pose_arry_msg.header.stamp.fromSec(GetWallTime());
+    pose_arry_msg.header.frame_id = "map";
+    for(int i(0);i<(int)(stfpts.size());i++)
+    {
+        geometry_msgs::Pose tmp;
+        tmp.position.x=stfpts[i][0];
+        tmp.position.y=stfpts[i][1];
+        tmp.orientation.w = 1.0;
+        pose_arry_msg.poses.push_back(tmp);
+    }
+
+    stf_poses_publisher_.publish(pose_arry_msg);
+
+}
+
 void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
   localization_msg_.header.stamp.fromSec(GetWallTime());
@@ -274,6 +299,7 @@ void PublishLocation(
   localization_publisher_.publish(localization_msg_);
 
   //publish global pose with geometry_msgs
+  /*
   if(publishiter>250){
 
 
@@ -364,6 +390,7 @@ void PublishLocation(
   //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map_en", "base_footprint"));
 
   publishiter++;
+  */
 
 }
 
@@ -1106,6 +1133,50 @@ void DrawLtfs(
   }
 }
 
+//added_by_mk
+void SaveStfsObservations(
+    const size_t start_pose, const size_t end_pose,
+    const vector<double>& poses,
+    const vector<vector< Vector2f> >& point_clouds,
+    const std::vector< NormalCloudf >& normal_clouds,
+    const vector<vector<NonMarkovLocalization::ObservationType> >&
+        classifications, std::vector<Vector2f>& stfpoints) {
+  stfpoints.clear();
+  for (size_t i = 0; i <= end_pose; ++i) {
+    const vector<Vector2f> &point_cloud = point_clouds[i];
+    const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
+    const float pose_angle = poses[3 * i + 2];
+    const Rotation2Df pose_rotation(pose_angle);
+    const Affine2f pose_transform =
+        Translation2f(pose_location) * pose_rotation;
+    for (size_t j = 0; j < point_cloud.size(); ++j) {
+      const Vector2f point = pose_transform * point_cloud[j];
+      if (i >= start_pose) {
+        switch (classifications[i][j]) {
+          case NonMarkovLocalization::kLtfObservation : {
+            continue;
+          } break;
+          case NonMarkovLocalization::kStfObservation : {
+            if(j%10==0)
+                stfpoints.push_back(point);
+          } break;
+          case NonMarkovLocalization::kDfObservation : {
+            continue;
+            if (i == end_pose) continue;
+          } break;
+        }
+      }
+    }
+  }
+
+  //vector<KDNodeValue<float,2>> values(stfpoints.size());
+  //stf_kdtree
+
+
+}
+
+
+
 void DrawObservations(
     const size_t start_pose, const size_t end_pose,
     const vector<double>& poses,
@@ -1157,7 +1228,7 @@ void DrawObservations(
       visualization::DrawPoint(point, point_color, visualization_msg_);
     }
   }
-  // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
+   //printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
 }
 
 void DrawGradients(
@@ -1285,6 +1356,7 @@ void DrawFactorGraph(
                kFactorFactorNodeColor,
                kFactorVariableNodeColor);
   }
+
 }
 
 void CorrespondenceCallback(
@@ -1319,6 +1391,9 @@ void CorrespondenceCallback(
   }
   DrawPoses(start_pose, end_pose, odometry_poses, poses, covariances);
   DrawGradients(start_pose, end_pose, gradients, poses);
+
+  SaveStfsObservations(start_pose, end_pose, poses, point_clouds, normal_clouds,
+                   classifications, localization_->stf_points_);
   DrawObservations(start_pose, end_pose, poses, point_clouds, normal_clouds,
                    classifications);
   DrawVisibilityConstraints(visibility_constraints, poses);
@@ -1337,6 +1412,7 @@ void CorrespondenceCallback(
              ray_cast_lines, point_line_correspondences);
   }
   if (kDisplayStfCorrespondences) {
+    //printf("draw_stfs\n");
     DrawStfs(point_point_correspondences, poses, point_clouds, normal_clouds);
   }
   PublishDisplay();
@@ -1445,6 +1521,8 @@ void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
       kOdometryTranslationScale * p_delta.x(),
       kOdometryTranslationScale * p_delta.y(), d_theta);
   PublishLocation();
+  PublishSTF(localization_->stf_points_);
+  
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
@@ -1460,6 +1538,7 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
 }
 
 void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
+  std::cout<<"laser callback"<<std::endl;
   static vector<float> normal_weights_;
   if (normal_weights_.size() == 0) {
     static const float stddev = 3;
@@ -2028,6 +2107,9 @@ int main(int argc, char** argv) {
       ros_node.advertise<geometry_msgs::PoseWithCovarianceStamped>(
       "laser_2d_pose", 1, true);
       //"global_pose", 1, true);
+  stf_poses_publisher_ =
+      ros_node.advertise<geometry_msgs::PoseArray>(
+      "stf_poses", 1, true);
 
   tf2_listener= new tf2_ros::TransformListener(tf_buffer);
 
