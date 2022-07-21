@@ -26,7 +26,7 @@
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
 
-#include "shared/math/math_util.h"
+#include "amrl_shared_lib/math/math_util.h"
 
 namespace perception_2d {
 

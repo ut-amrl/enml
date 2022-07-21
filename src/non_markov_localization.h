@@ -29,11 +29,11 @@
 #include <vector>
 
 #include "ceres/ceres.h"
-#include "shared/math/geometry.h"
-#include "shared/math/line2d.h"
+#include "amrl_shared_lib/math/geometry.h"
+#include "amrl_shared_lib/math/line2d.h"
 #include "kdtree.h"
 #include "perception_2d.h"
-#include "shared/util/pthread_utils.h"
+#include "amrl_shared_lib/util/pthread_utils.h"
 #include "sensor_msgs/LaserScan.h"
 #include "vector_map/vector_map.h"
 
