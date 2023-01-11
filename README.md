@@ -77,7 +77,7 @@ Open the webrviz html file in browser, and connect to localhost. This will autom
 
 ![EnML Example](example.png)
 
-1. Download the example ROS bag file of the UT-Jackal navigating from GDC to AHG: [2020-06-03-18-51-39.bag]([https://drive.google.com/file/d/1GrQ3982jt0dSS8Yw0h-hxMvZXgpmObWY/view?usp=sharing)
+1. Download the example ROS bag file of the UT-Jackal navigating from GDC to AHG: [2020-06-03-18-51-39.bag](https://drive.google.com/file/d/17Y6mClJp9mZfIsodh9LAruN21cs7V0KH/view?usp=share_link)
 1. Edit `config/robot.lua` to match the UT Jackal's configuration:
     ```
     RobotConfig = {
