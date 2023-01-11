@@ -31,6 +31,7 @@ Please cite this work using the following bibtex:
     export ROS_PACKAGE_PATH=`pwd`:$ROS_PACKAGE_PATH
     ```
 1. Install [amrl_msgs](https://github.com/ut-amrl/amrl_msgs) and add it to the `ROS_PACKAGE_PATH` variable.
+1. run `git submodule update --init --recursive` to pull submodules
 1. Run `make`
 
 ## Configuration
