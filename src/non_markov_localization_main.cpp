@@ -168,11 +168,11 @@ static const uint32_t kTrajectoryColor = 0x7F000000;
 static const uint32_t kPoseCovarianceColor = 0xFF808080;
 static const uint32_t kOdometryColor = 0x70FF0000;
 // static const uint32_t kTrajectoryColor = 0xFFC0C0C0;
-static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;
-static const uint32_t kLtfPointColor = 0xFFFF7700;
-static const uint32_t kStfPointColor = 0xFF994CD9;
-static const uint32_t kStfCorrespondenceColor = 0x7F994CD9;
-static const uint32_t kDfPointColor  = 0x7F37B30C;
+static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;  // light green
+static const uint32_t kLtfPointColor = 0xFFFF7700;  // yellow
+static const uint32_t kStfPointColor = 0xFF994CD9;  // orange
+static const uint32_t kStfCorrespondenceColor = 0x7F994CD9;   // dark green
+static const uint32_t kDfPointColor  = 0x7F37B30C;   // purple
 
 bool run_ = true;
 int debug_level_ = -1;
@@ -1619,7 +1619,8 @@ void PlayBagFile(const string& bag_file,
                  double time_skip,
                  ros::NodeHandle* node_handle,
                  double* observation_error_ptr,
-                 char* keyframes_file) {
+                 char* keyframes_file,
+                 double rate) {
   const bool compute_error = (observation_error_ptr != NULL);
   double& observation_error = *observation_error_ptr;
   double num_observed_points = 0.0;
@@ -1660,6 +1661,7 @@ void PlayBagFile(const string& bag_file,
   bool standard_odometry_initialized = false;
   vector<Pose2Df> pose_trajectory;
   nonblock(true);
+  RateLoop loop(rate);  // Runs the loop at specified Hz
   for (rosbag::View::iterator it = view.begin();
        run_ && it != view.end(); ++it) {
     const rosbag::MessageInstance &message = *it;
@@ -1773,6 +1775,9 @@ void PlayBagFile(const string& bag_file,
                                 init_location.y());
         localization_->Initialize(init_pose, init_map);
       }
+    }
+    if (rate > 0.0) {
+      loop.Sleep();
     }
   }
   localization_->Finalize();
@@ -1913,6 +1918,7 @@ int main(int argc, char** argv) {
   int max_laser_poses = -1;
   bool disable_stfs = false;
   double time_skip = 0;
+  double rate = -1.0;
   bool unique_node_name = false;
   bool return_initial_poses = false;
 
@@ -1949,6 +1955,8 @@ int main(int argc, char** argv) {
         "Save LTFs", "NONE"},
     { "quiet", 'q', POPT_ARG_NONE, &quiet_, 0,
         "Quiet", "NONE"},
+    { "rate", 'R', POPT_ARG_DOUBLE, &rate, 1,
+      "Rate (in hz) at which to run the bag file", "NUM" },
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
@@ -1995,7 +2003,7 @@ int main(int argc, char** argv) {
 
   if (bag_file != NULL) {
     PlayBagFile(
-        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL, keyframes_file);
+        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL, keyframes_file, rate);
   } else {
     OnlineLocalize(!disable_stfs, &ros_node);
   }
