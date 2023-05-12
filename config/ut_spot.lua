@@ -1,12 +1,13 @@
 RobotConfig = {
-    name = "ut-jackal";
-    scan_topic = "/velodyne_2dscan_high_beams";
+    name = "ut-spot";
+    scan_topic = "/velodyne_2dscan_highbeams";
     pointcloud_topic = "";
     odometry_topic = "/odom";
-    initialpose_topic = "/initialpose";
+    initialpose_topic = "/set_pose";
   };
   
   enml = {
+    -- map_name = "UT_Campus";
     map_name = "AHG2";
     starting_loc_x = 0;
     starting_loc_y = 0;
