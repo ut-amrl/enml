@@ -1,9 +1,9 @@
 RobotConfig = {
   name = "ut-jackal";
-  scan_topic = "/front/scan";
+  scan_topic = "/velodyne_2dscan";
   pointcloud_topic = "";
-  odometry_topic = "/odometry/filtered";
-  initialpose_topic = "/initialpose";
+  odometry_topic = "/jackal_velocity_controller/odom";
+  initialpose_topic = "/set_pose";
 };
 
 enml = {
@@ -22,22 +22,22 @@ enml = {
   min_point_cloud_range = 0.02;
   max_point_cloud_range = 100;
   max_normal_point_distance = 0.75;
-  robot_sensor_offset = vec3(0.05, 0.0, 0.5);
+  robot_sensor_offset = vec3(0.0762, 0.0, 0.5);
   num_skip_readings = 1;
 
   -- Odometry parameters.
-  min_rotation = deg2rad(1);
-  min_translation = 0.15;
-  max_odometry_delta_loc = 1.2;
-  max_odometry_delta_angle = deg2rad(150.0);
+  min_rotation = deg2rad(5);
+  min_translation = 0.25;
+  max_odometry_delta_loc = 0.2;
+  max_odometry_delta_angle = deg2rad(15.0);
   odometry_rotation_scale = 1.0;
   odometry_translation_scale = 1.0;
 
   -- Parameters for Odometry constraints.
   max_update_period = 0.5;
-  odometry_radial_stddev_rate = 10.1;
-  odometry_tangential_stddev_rate = 10.1;
-  odometry_angular_stddev_rate = 10.5;
+  odometry_radial_stddev_rate = 0.1;
+  odometry_tangential_stddev_rate = 0.1;
+  odometry_angular_stddev_rate = 0.5;
   odometry_translation_min_stddev = 0.001;
   odometry_translation_max_stddev = 10.5;
   odometry_rotation_min_stddev = deg2rad(10.0);
@@ -50,8 +50,8 @@ enml = {
   map_correlation_factor = 1.0 / 5.0;
 
   -- Parameters for STF constraints.
-  point_match_threshold = 0.15;
-  max_stf_angle_error = deg2rad(135.0);
+  point_match_threshold = 0.25;
+  max_stf_angle_error = deg2rad(35.0);
   max_correspondences_per_point = 10;
   point_correlation_factor = 1.0 / 5.0;
 
@@ -71,11 +71,11 @@ enml = {
 
   -- MLE Optimization parameters.
   pose_increment = 1;
-  max_history = 20;
-  max_solver_iterations = 30;
-  num_repeat_iterations = 2;
-  max_repeat_iterations = 4;
+  max_history = 10;
+  max_solver_iterations = 15;
+  num_repeat_iterations = 1;
+  max_repeat_iterations = 3;
   return_jacobian = false;
-  num_threads = 28;
-  limit_history = false;
+  num_threads = 8;
+  limit_history = true;
 };
