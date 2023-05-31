@@ -43,6 +43,7 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "std_msgs/Float64MultiArray.h"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
@@ -133,7 +134,7 @@ float kOdometryRotationScale = 1.0;
 // Scaling constant to correct for error in translation odometry.
 float kOdometryTranslationScale = 1.0;
 // Minimum distance of observed points from the robot.
-float kMinPointCloudRange = 0.2;
+float kMinPointCloudRange = 0.2;  // TODO: Make this 0
 // Maximum distance of observed points from the robot.
 float kMaxPointCloudRange = 6.0;
 // Maximum distance between adjacent points to use for computation of normals.
@@ -165,19 +166,24 @@ int statistical_test_index_ = -1;
 // The fraction of additive odometry noise for statistical tests.
 double odometry_additive_noise_ = 0.05;
 
+// Color order: ARGB where A is alpha (% opacity)
+// CorrespondenceCallback is the mother method of all below color visualizations
 // static const uint32_t kTrajectoryColor = 0x6FFF0000;
-static const uint32_t kTrajectoryColor = 0x7F000000;
-static const uint32_t kPoseCovarianceColor = 0xFF808080;
-static const uint32_t kOdometryColor = 0x70FF0000;
+static const uint32_t kTrajectoryColor = 0x7F000000;      // very dark black with 50% transparency
+static const uint32_t kPoseCovarianceColor = 0xFF808080;  // gray with 0% transparency
+static const uint32_t kOdometryColor = 0x70FF0000;        // red but mostly transparent
 // static const uint32_t kTrajectoryColor = 0xFFC0C0C0;
-static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;
-static const uint32_t kLtfPointColor = 0xFFFF7700;
-static const uint32_t kStfPointColor = 0x994CD9;
-static const uint32_t kStfCorrespondenceColor = 0x994CD9;
-static const uint32_t kDfPointColor = 0x7F37B30C;
+static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;  // light brownish-green with 50% transparency - DrawLtfs
+static const uint32_t kLtfPointColor = 0xFFFF7700;           // orange with 0% transparency - DrawObservations
+static const uint32_t kStfPointColor = 0xFF994CD9;           // purple with 0% transparency - DrawObservations
+static const uint32_t kStfCorrespondenceColor = 0x7F994CD9;  // purple with 50% transparency - DrawStfs
+static const uint32_t kDfPointColor = 0x7F37B30C;            // dark green with 50% transparency - DrawObservations
 
 bool run_ = true;
 int debug_level_ = -1;
+vector<Vector2f> ltf_points_;
+vector<Vector2f> stf_points_;
+vector<Vector2f> df_points_;
 
 // ROS publisher to publish visualization messages.
 ros::Publisher visualization_publisher_;
@@ -190,6 +196,15 @@ ros::Publisher localization_publisher_ros_;
 
 // ROS publisher to publish smoothed odometry.
 ros::Publisher odometry_publisher_;
+
+// ROS publisher to publish enml observed long-term features
+ros::Publisher ltfs_publisher_;
+
+// ROS publisher to publish enml observed short-term features
+ros::Publisher stfs_publisher_;
+
+// ROS publisher to publish enml observed dynamic features
+ros::Publisher dfs_publisher_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -316,7 +331,7 @@ void PublishTrace() {
 
   for (unsigned int i = 0; i + 1 < trace.size(); i++) {
     if ((trace[i] - trace[i + 1]).squaredNorm() > Sq(5.0)) continue;
-    visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);
+    visualization::DrawLine(trace[i], trace[i + 1], 0xFFc0c0c0, visualization_msg_);  // light gray with 0% transparency
   }
 }
 
@@ -889,6 +904,36 @@ void DrawLtfs(const size_t start_pose, const size_t end_pose, const vector<doubl
   }
 }
 
+void ConvertToDoubleArray(const vector<Vector2f>& points_) {
+  vector<double> parr;
+  for (const auto& pt : parr) {
+    parr.push_back(pt.x);
+    parr.push_back(pt.y);
+  }
+  return parr;
+}
+
+void PublishEnmlObs() {
+  vector<double> ltfs_arr = ConvertToDoubleArray(ltf_points_);
+  vector<double> stfs_arr = ConvertToDoubleArray(stf_points_);
+  vector<double> dfs_arr = ConvertToDoubleArray(df_points_);
+  std_msgs::Float64MultiArray ltfs_msg;
+  std_msgs::Float64MultiArray stfs_msg;
+  std_msgs::Float64MultiArray dfs_msg;
+  for (auto& num : ltfs_arr) {
+    ltfs_msg.data.push_back(num);
+  }
+  for (auto& num : stfs_arr) {
+    stfs_msg.data.push_back(num);
+  }
+  for (auto& num : dfs_arr) {
+    dfs_msg.data.push_back(num);
+  }
+  ltfs_publisher_.publish(ltfs_msg) stfs_publisher_.publish(stfs_msg) dfs_publisher_.publish(dfs_msg) ltf_points_.clear();
+  stf_points_.clear();
+  df_points_.clear();
+}
+
 void DrawObservations(const size_t start_pose, const size_t end_pose, const vector<double>& poses, const vector<vector<Vector2f> >& point_clouds, const std::vector<NormalCloudf>& normal_clouds, const vector<vector<NonMarkovLocalization::ObservationType> >& classifications) {
   static const bool kDisplayTangents = false;
   int num_ltfs = 0, num_stfs = 0, num_dfs = 0;
@@ -907,16 +952,19 @@ void DrawObservations(const size_t start_pose, const size_t end_pose, const vect
         switch (classifications[i][j]) {
           case NonMarkovLocalization::kLtfObservation: {
             point_color = kLtfPointColor;
+            ltf_points_.push_back(point);
             ++num_ltfs;
           } break;
           case NonMarkovLocalization::kStfObservation: {
             // DrawLine(point, pose_location, 0x1F994CD9, &display_message_);
             point_color = kStfPointColor;
+            stf_points_.push_back(point);
             ++num_stfs;
             valid_point = true;
           } break;
           case NonMarkovLocalization::kDfObservation: {
             point_color = kDfPointColor;
+            df_points_.push_back(point);
             ++num_dfs;
             valid_point = true;
             if (i == end_pose) continue;
@@ -930,6 +978,7 @@ void DrawObservations(const size_t start_pose, const size_t end_pose, const vect
         visualization::DrawLine(point + dir, point - dir, 0x7FFF4000, visualization_msg_);
       }
       visualization::DrawPoint(point, point_color, visualization_msg_);
+      PublishEnmlObs()
     }
   }
   // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
@@ -1643,6 +1692,9 @@ int main(int argc, char** argv) {
   localization_publisher_amrl_ = ros_node.advertise<amrl_msgs::Localization2DMsg>("localization", 1, true);
   localization_publisher_ros_ = ros_node.advertise<geometry_msgs::PoseStamped>("localization_ros", 1, true);
   odometry_publisher_ = ros_node.advertise<nav_msgs::Odometry>("enml_odometry", 1, true);
+  ltfs_publisher_ = ros_node.advertise<std_msgs::Float64MultiArray>("enml_scan_ltfs", 1, true);
+  stfs_publisher_ = ros_node.advertise<std_msgs::Float64MultiArray>("enml_scan_stfs", 1, true);
+  dfs_publisher_ = ros_node.advertise<std_msgs::Float64MultiArray>("enml_scan_dfs", 1, true);
   {
     visualization_publisher_ = ros_node.advertise<amrl_msgs::VisualizationMsg>("visualization", 1, true);
     visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
