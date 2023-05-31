@@ -904,11 +904,11 @@ void DrawLtfs(const size_t start_pose, const size_t end_pose, const vector<doubl
   }
 }
 
-void ConvertToDoubleArray(const vector<Vector2f>& points_) {
+vector<double> ConvertToDoubleArray(const vector<Vector2f>& points_) {
   vector<double> parr;
-  for (const auto& pt : parr) {
-    parr.push_back(pt.x);
-    parr.push_back(pt.y);
+  for (const auto& pt : points_) {
+    parr.push_back(static_cast<double>(pt[0]));
+    parr.push_back(static_cast<double>(pt[1]));
   }
   return parr;
 }
@@ -929,7 +929,10 @@ void PublishEnmlObs() {
   for (auto& num : dfs_arr) {
     dfs_msg.data.push_back(num);
   }
-  ltfs_publisher_.publish(ltfs_msg) stfs_publisher_.publish(stfs_msg) dfs_publisher_.publish(dfs_msg) ltf_points_.clear();
+  ltfs_publisher_.publish(ltfs_msg);
+  stfs_publisher_.publish(stfs_msg);
+  dfs_publisher_.publish(dfs_msg);
+  ltf_points_.clear();
   stf_points_.clear();
   df_points_.clear();
 }
@@ -978,7 +981,7 @@ void DrawObservations(const size_t start_pose, const size_t end_pose, const vect
         visualization::DrawLine(point + dir, point - dir, 0x7FFF4000, visualization_msg_);
       }
       visualization::DrawPoint(point, point_color, visualization_msg_);
-      PublishEnmlObs()
+      PublishEnmlObs();
     }
   }
   // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
