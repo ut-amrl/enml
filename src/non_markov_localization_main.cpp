@@ -175,8 +175,8 @@ static const uint32_t kOdometryColor = 0x70FF0000;        // red but mostly tran
 // static const uint32_t kTrajectoryColor = 0xFFC0C0C0;
 static const uint32_t kLtfCorrespondenceColor = 0x7FFF7700;  // light brownish-green with 50% transparency - DrawLtfs
 static const uint32_t kLtfPointColor = 0xFFFF7700;           // orange with 0% transparency - DrawObservations
-static const uint32_t kStfPointColor = 0xFF994CD9;           // purple with 0% transparency - DrawObservations
-static const uint32_t kStfCorrespondenceColor = 0x7F994CD9;  // purple with 50% transparency - DrawStfs
+static const uint32_t kStfPointColor = 0x994CD9;           // purple with 0% transparency - DrawObservations
+static const uint32_t kStfCorrespondenceColor = 0x994CD9;  // purple with 50% transparency - DrawStfs
 static const uint32_t kDfPointColor = 0x7F37B30C;            // dark green with 50% transparency - DrawObservations
 
 bool run_ = true;
