@@ -981,9 +981,9 @@ void DrawObservations(const size_t start_pose, const size_t end_pose, const vect
         visualization::DrawLine(point + dir, point - dir, 0x7FFF4000, visualization_msg_);
       }
       visualization::DrawPoint(point, point_color, visualization_msg_);
-      PublishEnmlObs();
     }
   }
+  PublishEnmlObs();
   // printf("LTFs:%10d STFs:%10d DFs:%10d\n", num_ltfs, num_stfs, num_dfs);
 }
 
