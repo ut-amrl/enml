@@ -459,7 +459,7 @@ struct VisibilityGlobConstraint {
     }
     residuals[0] = sqrt(residuals[0]);
     */
-    CHECK(ceres::IsFinite(residuals[0]));
+    CHECK(ceres::isfinite(residuals[0]));
     return true;
   }
 
