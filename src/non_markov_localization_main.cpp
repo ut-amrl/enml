@@ -64,6 +64,10 @@
 #include "config_reader/config_reader.h"
 #include "visualization/visualization.h"
 
+// TaijingTODO: filter out useless headers
+#include "cobot_msgs/CobotOdometryMsg.h"
+#include "cobot_msgs/CobotLocalizationMsg.h"
+
 using Eigen::Affine2d;
 using Eigen::Affine2f;
 using Eigen::Matrix2d;
@@ -180,11 +184,9 @@ int debug_level_ = -1;
 // ROS publisher to publish visualization messages.
 ros::Publisher visualization_publisher_;
 
-// ROS publisher to publish the latest robot localization w/ amrl_msgs.
-ros::Publisher localization_publisher_amrl_;
-
-// ROS publisher to publish the latest robot localization w/ ros geometry_msgs.
-ros::Publisher localization_publisher_ros_;
+// ROS publisher to publish the latest robot localization estimate to
+// Cobot/Localization
+ros::Publisher localization_publisher_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -215,6 +217,20 @@ bool save_ltfs_ = false;
 
 // Suppress stdout.
 bool quiet_ = false;
+
+// Inline helpers
+inline double GetTimeSec()
+{
+#ifdef Apertos
+  struct SystemTime time;
+  GetSystemTime(&time);
+  return ((double)time.seconds + time.useconds * (1.0E-6));
+#else
+  timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  return (double(ts.tv_sec) + double(ts.tv_nsec) * (1.0E-9));
+#endif
+}
 
 // Accept noise-free odometry, and apply noise by mimicing encoders of a
 // four=-wheel omnidirectional robot.
@@ -278,20 +294,25 @@ geometry_msgs::PoseStamped ConvertAMRLmsgToROSmsg(const amrl_msgs::Localization2
 void PublishLocation(
     const string &map_name, const float x, const float y, const float angle)
 {
-  localization_msg_.header.stamp = ros::Time::now();
+  cobot_msgs::CobotLocalizationMsg localization_msg_;
+  localization_msg_.timeStamp = GetTimeSec();
   localization_msg_.map = map_name;
-  localization_msg_.pose.x = x;
-  localization_msg_.pose.y = y;
-  localization_msg_.pose.theta = angle;
-  localization_publisher_amrl_.publish(localization_msg_);
-  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(localization_msg_));
+  localization_msg_.x = x;
+  localization_msg_.y = y;
+  localization_msg_.angle = angle;
+  localization_publisher_.publish(localization_msg_);
 }
 
 void PublishLocation()
 {
-  Pose2Df pose = localization_->GetLatestPose();
-  const string map = localization_->GetCurrentMapName();
-  PublishLocation(map, pose.translation.x(), pose.translation.y(), pose.angle);
+  Pose2Df latest_pose = localization_->GetLatestPose();
+  cobot_msgs::CobotLocalizationMsg localization_msg_;
+  localization_msg_.timeStamp = GetTimeSec();
+  localization_msg_.map = localization_->GetCurrentMapName();
+  localization_msg_.x = latest_pose.translation.x();
+  localization_msg_.y = latest_pose.translation.y();
+  localization_msg_.angle = latest_pose.angle;
+  localization_publisher_.publish(localization_msg_);
 }
 
 void PublishTrace()
@@ -827,36 +848,34 @@ bool LoadOdometryMessage(const rosbag::MessageInstance &message,
                          Vector2f *relative_location,
                          float *relative_angle)
 {
-  nav_msgs::OdometryPtr odometry_message =
-      message.instantiate<nav_msgs::Odometry>();
+  // [NOTE] The original enml repo uses nav_msgs::OdometryPtr
+  // For cobot, we switch it to cobot_msgs::CobotOdometryMsgPtr
+  cobot_msgs::CobotOdometryMsgPtr odometry_message =
+      message.instantiate<cobot_msgs::CobotOdometryMsg>();
   const string topic_name = message.getTopic();
-  if (odometry_message != NULL &&
-      message.getTopic() == CONFIG_odom_topic)
+  if (odometry_message != NULL && message.getTopic() == CONFIG_odom_topic)
   {
-    if (debug_level_ > 2)
+    if (false && debug_level_ > 2)
     {
       printf("Odometry Msg, t:%.2f\n", message.getTime().toSec());
       fflush(stdout);
     }
-    const Vector2f odometry_message_location(
-        odometry_message->pose.pose.position.x,
-        odometry_message->pose.pose.position.y);
-    *relative_location = kOdometryTranslationScale * (Rotation2Df(-odometry_angle) *
-                                                      (odometry_message_location - odometry_location));
-    const float odometry_message_angle =
-        2.0 * atan2(odometry_message->pose.pose.orientation.z,
-                    odometry_message->pose.pose.orientation.w);
-    *relative_angle = kOdometryRotationScale *
-                      AngleDiff(odometry_message_angle, odometry_angle);
     if (test_set_index_ >= 0 || statistical_test_index_ >= 0)
     {
-      relative_location->x() +=
-          rand_.Gaussian(0, odometry_additive_noise_ * relative_location->x());
-      relative_location->y() +=
-          rand_.Gaussian(0, odometry_additive_noise_ * relative_location->y());
-      (*relative_angle) +=
-          rand_.Gaussian(0, odometry_additive_noise_ * (*relative_angle));
+      odometry_message->dx +=
+          rand_.Gaussian(0, odometry_additive_noise_ * odometry_message->dx);
+      odometry_message->dy +=
+          rand_.Gaussian(0, odometry_additive_noise_ * odometry_message->dy);
+      odometry_message->dr +=
+          rand_.Gaussian(0, odometry_additive_noise_ * odometry_message->dr);
     }
+    // Accumulate odometry to update robot pose estimate.
+    const Vector2f delta(odometry_message->dx, odometry_message->dy);
+    *relative_location = *relative_location +
+                         kOdometryTranslationScale * (Rotation2Df(*relative_angle) *
+                                                      delta);
+    *relative_angle = *relative_angle +
+                      kOdometryRotationScale * odometry_message->dr;
     return true;
   }
 
@@ -1515,23 +1534,43 @@ void StandardOdometryCallback(const nav_msgs::Odometry &last_odometry_msg,
   PublishLocation();
 }
 
-void OdometryCallback(const nav_msgs::Odometry &msg)
+// void OdometryCallback(const nav_msgs::Odometry &msg)
+// {
+//   static nav_msgs::Odometry last_msg_;
+//   static const float kMaxDist = 2.0;
+//   static Vector2f last_pos(0, 0);
+//   const Vector2f new_pos(msg.pose.pose.position.x, msg.pose.pose.position.y);
+//   if ((new_pos - last_pos).squaredNorm() < Sq(kMaxDist))
+//   {
+//     StandardOdometryCallback(last_msg_, msg);
+//   }
+//   else if (debug_level_ > 0)
+//   {
+//     printf("\nWARNING: Large odometry change (%.3f) ignored!\n\n",
+//            (new_pos - last_pos).norm());
+//   }
+//   last_pos = new_pos;
+//   last_msg_ = msg;
+// }
+
+void OdometryCallback(const cobot_msgs::CobotOdometryMsg &odometry_msg)
 {
-  static nav_msgs::Odometry last_msg_;
-  static const float kMaxDist = 2.0;
-  static Vector2f last_pos(0, 0);
-  const Vector2f new_pos(msg.pose.pose.position.x, msg.pose.pose.position.y);
-  if ((new_pos - last_pos).squaredNorm() < Sq(kMaxDist))
+  if ((Sq(odometry_msg.dx) + Sq(odometry_msg.dy)) > kSqMaxOdometryDeltaLoc ||
+      fabs(odometry_msg.dr) > kMaxOdometryDeltaAngle)
   {
-    StandardOdometryCallback(last_msg_, msg);
+    printf("EnML Odometry out of bounds: x:%7.3f y:%7.3f a:%7.3f\u00b0\n",
+           odometry_msg.dx, odometry_msg.dy, DegToRad(odometry_msg.dr));
+    return;
   }
-  else if (debug_level_ > 0)
+  if (debug_level_ > 2)
   {
-    printf("\nWARNING: Large odometry change (%.3f) ignored!\n\n",
-           (new_pos - last_pos).norm());
+    printf("Odometry, t=%f\n", odometry_msg.header.stamp.toSec());
   }
-  last_pos = new_pos;
-  last_msg_ = msg;
+  localization_->OdometryUpdate(
+      kOdometryTranslationScale * odometry_msg.dx,
+      kOdometryTranslationScale * odometry_msg.dy,
+      kOdometryRotationScale * odometry_msg.dr);
+  PublishLocation();
 }
 
 void LaserCallback(const sensor_msgs::LaserScan &laser_message)
@@ -2041,8 +2080,6 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg &msg)
   }
   localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
-  localization_publisher_amrl_.publish(msg);
-  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(msg));
 
   if (false)
   {
@@ -2212,12 +2249,9 @@ int main(int argc, char **argv)
   ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   ros::NodeHandle ros_node;
   InitializeMessages();
-  localization_publisher_amrl_ =
-      ros_node.advertise<amrl_msgs::Localization2DMsg>(
-          "localization", 1, true);
-  localization_publisher_ros_ =
-      ros_node.advertise<geometry_msgs::PoseStamped>(
-          "localization_ros", 1, true);
+  localization_publisher_ =
+      ros_node.advertise<cobot_msgs::CobotLocalizationMsg>(
+          "Cobot/Localization", 1, true);
   {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(

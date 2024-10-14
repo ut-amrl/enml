@@ -8,6 +8,7 @@
   <license>GPLv3.0</license>
   <review status="unreviewed" notes=""/>
   <url></url>
+  <depend package="cobot_msgs"/>
   <depend package="std_msgs"/>
   <depend package="nav_msgs"/>
   <depend package="sensor_msgs"/>
