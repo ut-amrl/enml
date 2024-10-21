@@ -4,15 +4,24 @@ RobotConfig = {
   -- To use Kinect-based ENML, uncomment the following.
   -- pointcloud_topic = "/Cobot/Kinect/Scan";
   pointcloud_topic = "";
-  odometry_topic = "/Cobot/Odometry";
+  -- odometry_topic = "/Cobot/Odometry";
+  odometry_topic = "/odom";
   initialpose_topic = "/initialpose";
 };
 
 enml = {
-  map_name = "AHG2";
-  starting_loc_x = 0;
-  starting_loc_y = 0;
-  starting_angle = deg2rad(180.0);
+  map_name = "AHG2v2";
+  starting_loc_x = 12.407;
+  starting_loc_y = 61.183;
+  starting_angle = deg2rad(90.0);
+
+  -- starting_loc_x = 12.442;
+  -- starting_loc_y = 56.358;
+  -- starting_angle = deg2rad(180.0);
+  
+  -- starting_loc_x = 1.6;
+  -- starting_loc_y = 72.0;
+  -- starting_angle = deg2rad(0.0);
 
   -- CoBot Sensor parameters.
   laser_std_dev = 0.05;
