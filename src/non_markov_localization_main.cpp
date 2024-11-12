@@ -45,6 +45,7 @@
 
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
+#include "amrl_msgs/LDOSLocalization.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -109,6 +110,7 @@ CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::Localization2DMsg localization_msg_;
+amrl_msgs::LDOSLocalization ldos_localization_msg_;
 
 // ROS message for visualization with WebViz.
 amrl_msgs::VisualizationMsg visualization_msg_;
@@ -179,6 +181,7 @@ ros::Publisher visualization_publisher_;
 
 // ROS publisher to publish the latest robot localization.
 ros::Publisher localization_publisher_;
+ros::Publisher ldos_localization_publisher_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -257,7 +260,14 @@ void PublishLocation(
   localization_msg_.pose.x = x;
   localization_msg_.pose.y = y;
   localization_msg_.pose.theta = angle;
+
+  ldos_localization_msg_.header = localization_msg_.header;
+  ldos_localization_msg_.map = localization_msg_.map;
+  ldos_localization_msg_.pose = localization_msg_.pose;
+  ldos_localization_msg_.sys_nano_time = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
   localization_publisher_.publish(localization_msg_);
+  ldos_localization_publisher_.publish(ldos_localization_msg_);
 }
 
 void PublishLocation() {
@@ -1753,7 +1763,13 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
   }
   localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
+  amrl_msgs::LDOSLocalization ldos_msg;
+  ldos_msg.header = msg.header;
+  ldos_msg.pose = msg.pose;
+  ldos_msg.map = msg.map;
+  ldos_msg.sys_nano_time = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   localization_publisher_.publish(msg);
+  ldos_localization_publisher_.publish(ldos_msg);
 }
 
 void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
@@ -1896,6 +1912,9 @@ int main(int argc, char** argv) {
   localization_publisher_ =
       ros_node.advertise<amrl_msgs::Localization2DMsg>(
       "localization", 1, true);
+  ldos_localization_publisher_ =
+      ros_node.advertise<amrl_msgs::LDOSLocalization>(
+      "ldos/localization", 1, true);
   {
     visualization_publisher_ =
         ros_node.advertise<amrl_msgs::VisualizationMsg>(
