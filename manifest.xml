@@ -16,6 +16,7 @@
   <depend package="visualization_msgs"/>
   <depend package="tf"/>
   <depend package="amrl_msgs"/>
+  <depend package="spot_msgs"/>
 </package>
 
 

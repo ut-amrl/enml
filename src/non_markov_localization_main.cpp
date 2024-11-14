@@ -46,6 +46,8 @@
 #include "amrl_msgs/Localization2DMsg.h"
 #include "amrl_msgs/VisualizationMsg.h"
 #include "amrl_msgs/LDOSLocalization.h"
+#include "amrl_msgs/LDOSLaserScan.h"
+#include "spot_msgs/LDOSOdometry.h"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -101,9 +103,11 @@ typedef KDNodeValue<float, 2> KDNodeValue2f;
 namespace {
 // Name of the topic that scan data is published on.
 CONFIG_STRING(scan_topic, "RobotConfig.scan_topic");
+CONFIG_STRING(ldos_scan_topic, "RobotConfig.ldos_scan_topic");
 
 // Name of the topic that odometry is published on.
 CONFIG_STRING(odom_topic, "RobotConfig.odometry_topic");
+CONFIG_STRING(ldos_odom_topic, "RobotConfig.ldos_odometry_topic");
 
 // Name of the topic that location reset commands are published on.
 CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
@@ -192,6 +196,10 @@ NonMarkovLocalization* localization_;
 // The last observed laser scan, used for auto localization.
 sensor_msgs::LaserScan last_laser_scan_;
 
+// ldos
+amrl_msgs::LDOSLaserScan last_ldos_laser_scan_;
+spot_msgs::LDOSOdometry last_ldos_odom_;
+
 // Directory where images of every episode at every timestep will be saved.
 char* episode_images_path = NULL;
 
@@ -265,6 +273,7 @@ void PublishLocation(
   ldos_localization_msg_.map = localization_msg_.map;
   ldos_localization_msg_.pose = localization_msg_.pose;
   ldos_localization_msg_.sys_nano_time = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  ldos_localization_msg_.anyinfo = "{odom: " + std::to_string(last_ldos_odom_.sys_nano_time) + ", laser: " + std::to_string(last_ldos_laser_scan_.sys_nano_time) + "}";
 
   localization_publisher_.publish(localization_msg_);
   ldos_localization_publisher_.publish(ldos_localization_msg_);
@@ -1398,6 +1407,14 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
   last_laser_scan_ = laser_message;
 }
 
+void LDOSLaserCallback(const amrl_msgs::LDOSLaserScan& laser_message) {
+  last_ldos_laser_scan_ = laser_message;
+}
+
+void LDOSOdometryCallback(const spot_msgs::LDOSOdometry& odometry_message) {
+  last_ldos_odom_ = odometry_message;
+}
+
 // GUI interaction state enumeration.
 enum GuiInteractionState {
   kGuiStateNone = 0,
@@ -1784,8 +1801,12 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
 
   Subscriber laser_subscriber =
       node->subscribe(CONFIG_scan_topic, 1, LaserCallback);
+  Subscriber ldos_laser_subscriber =
+      node->subscribe(CONFIG_ldos_scan_topic, 1, LDOSLaserCallback);
   Subscriber odom_subscriber =
       node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
+  Subscriber ldos_odom_subscriber =
+      node->subscribe(CONFIG_ldos_odom_topic, 1, LDOSOdometryCallback);
   Subscriber initialize_subscriber =
       node->subscribe("/set_pose", 1, InitializeCallback);
 
