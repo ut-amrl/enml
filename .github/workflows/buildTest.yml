@@ -6,59 +6,68 @@ jobs:
   # Set the job key. The key is displayed as the job name
   # when a job name is not provided
   build-test:
-    # Name the Job
-    name: Build test
-    # Set the type of machine to run on
-    runs-on: ubuntu-20.04
+    name: Build and Test (ROS2)
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      ROS_DISTRO: humble  # Change to 'iron' or 'rolling' if needed
 
     steps:
       # Run package update
-      - name: Run package update
+      - name: Update package lists
         run: |
           sudo apt update
           sudo apt dist-upgrade -y
 
+      # Ensure Git is installed for submodules support
+      - name: Install Git
+        run: sudo apt-get install -y git
+
       # Install dependencies
-      - name: Install dependencies
+      - name: Install ROS2
         run: |
-          sudo apt-get install g++ cmake libpopt-dev \
-            liblua5.1-dev libeigen3-dev \
-            libjpeg8-dev libgoogle-perftools-dev \
-            libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
-            libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev
-
-      # Install ROS
-      - name: Install ROS
-        run: |
-          sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-          sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
           sudo apt update
-          sudo apt install ros-noetic-desktop
-          sudo apt install python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential
-          sudo rosdep init
-          rosdep update
+          sudo apt install -y curl gnupg2 lsb-release
+          sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+          sudo apt update
+          sudo apt install -y ros-$ROS_DISTRO-desktop python3-colcon-common-extensions
 
+      # Source ROS2 environment
+      - name: Source ROS2
+        run: echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> $GITHUB_ENV
 
       # Checks out a copy of your repository
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
+      # Install dependencies
+      - name: Install dependencies
+        run: ./InstallPackages
+
       # Checkout and build amrl_msgs
-      - name: Get amrl_msgs
+      - name: Clone and build amrl_msgs (ROS2)
         run: |
-          source /opt/ros/noetic/setup.bash
-          export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/../amrl_msgs
-          cd $GITHUB_WORKSPACE/..
+          cd ..
           git clone https://github.com/ut-amrl/amrl_msgs.git
           cd amrl_msgs
+          source /opt/ros/$ROS_DISTRO/setup.bash
           make
 
       # Compiles the code
-      - name: Run build
+      - name: Build enml
         run: |
-          source /opt/ros/noetic/setup.bash
-          export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/../amrl_msgs
-          cd $GITHUB_WORKSPACE
+          source /opt/ros/$ROS_DISTRO/setup.bash
           make
+
+      # Run unit tests
+      - name: Run unit tests
+        run: |
+          source /opt/ros/$ROS_DISTRO/setup.bash
+          make test

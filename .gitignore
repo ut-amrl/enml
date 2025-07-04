@@ -1,8 +1,10 @@
 bin
 build
 lib
+install
 msg_gen
 src/enml
 .vscode
+.clang-format
 config/robot.lua
 data

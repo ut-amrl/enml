@@ -1,7 +1,30 @@
 #!/bin/bash
-sudo apt-get install g++ cmake libpopt-dev \
+
+echo "Installing ENML ROS2 dependencies..."
+
+# Core system dependencies
+sudo apt-get update
+sudo apt-get install -y \
+    g++ cmake libpopt-dev \
     liblua5.1-dev libeigen3-dev \
     libjpeg8-dev libgoogle-perftools-dev \
     libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
     libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
     libncurses5-dev
+
+# ROS2-specific dependencies
+sudo apt-get install -y \
+    ros-$ROS_DISTRO-ament-cmake \
+    ros-$ROS_DISTRO-rclcpp \
+    ros-$ROS_DISTRO-std-msgs \
+    ros-$ROS_DISTRO-geometry-msgs \
+    ros-$ROS_DISTRO-sensor-msgs \
+    ros-$ROS_DISTRO-nav-msgs \
+    ros-$ROS_DISTRO-visualization-msgs \
+    ros-$ROS_DISTRO-tf2 \
+    ros-$ROS_DISTRO-tf2-geometry-msgs \
+    ros-$ROS_DISTRO-rosbag2-cpp \
+    ros-$ROS_DISTRO-rosbag2-storage \
+    ros-$ROS_DISTRO-ament-index-cpp
+
+echo "Dependencies installed successfully!"
