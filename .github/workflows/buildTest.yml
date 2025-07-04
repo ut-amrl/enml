@@ -6,42 +6,48 @@ jobs:
   # Set the job key. The key is displayed as the job name
   # when a job name is not provided
   build-test:
-    # Name the Job
-    name: Build test
-    # Set the type of machine to run on
-    runs-on: ubuntu-20.04
+    name: Build Test (ROS1 Noetic)
+    runs-on: ubuntu-22.04
+    container: ros:noetic
+    
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
       # Run package update
       - name: Run package update
         run: |
-          sudo apt update
-          sudo apt dist-upgrade -y
+          apt update
+          apt dist-upgrade -y
+
+      # Ensure Git is installed for submodules support
+      - name: Install Git
+        run: |
+          apt-get install -y git
 
       # Install dependencies
       - name: Install dependencies
         run: |
-          sudo apt-get install g++ cmake libpopt-dev \
+          apt-get install -y g++ cmake libpopt-dev \
             liblua5.1-dev libeigen3-dev \
             libjpeg8-dev libgoogle-perftools-dev \
             libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
-            libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev
+            libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
+            ros-noetic-xmlrpcpp python-is-python3 \
+            python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential \
+            ros-noetic-tf ros-noetic-angles ros-noetic-tf2-geometry-msgs
 
-      # Install ROS
-      - name: Install ROS
+      # ROSDep
+      - name: ROSDep Update
         run: |
-          sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-          sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-          sudo apt update
-          sudo apt install ros-noetic-desktop
-          sudo apt install python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential
-          sudo rosdep init
+          rm -f /etc/ros/rosdep/sources.list.d/20-default.list || true
+          rosdep init || true
           rosdep update
-
 
       # Checks out a copy of your repository
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
