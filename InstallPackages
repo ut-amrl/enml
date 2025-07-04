@@ -10,7 +10,10 @@ sudo apt-get install -y \
     libjpeg8-dev libgoogle-perftools-dev \
     libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
     libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
-    libncurses5-dev
+    libncurses5-dev \
+    qtbase5-dev libqt5websockets5-dev \
+    python3 python3-pip \
+    libyaml-cpp-dev liblua5.1-0-dev
 
 # ROS2-specific dependencies
 sudo apt-get install -y \
@@ -21,10 +24,11 @@ sudo apt-get install -y \
     ros-$ROS_DISTRO-sensor-msgs \
     ros-$ROS_DISTRO-nav-msgs \
     ros-$ROS_DISTRO-visualization-msgs \
-    ros-$ROS_DISTRO-tf2 \
     ros-$ROS_DISTRO-tf2-geometry-msgs \
     ros-$ROS_DISTRO-rosbag2-cpp \
     ros-$ROS_DISTRO-rosbag2-storage \
+    ros-$ROS_DISTRO-angles \
+    ros-$ROS_DISTRO-tf2 \
     ros-$ROS_DISTRO-ament-index-cpp
 
 echo "Dependencies installed successfully!"

@@ -35,11 +35,7 @@ jobs:
           sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
           echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
           sudo apt update
-          sudo apt install -y ros-$ROS_DISTRO-desktop python3-colcon-common-extensions
-
-      # Source ROS2 environment
-      - name: Source ROS2
-        run: echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> $GITHUB_ENV
+          sudo apt install -y ros-$ROS_DISTRO-desktop-full python3-colcon-common-extensions
 
       # Checks out a copy of your repository
       - name: Checkout code
@@ -48,8 +44,21 @@ jobs:
           submodules: 'recursive'
 
       # Install dependencies
+      - name: Install Lua 5.1 Development Libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository universe
+          sudo apt-get update
+          sudo apt-get install -y liblua5.1-0-dev
+
       - name: Install dependencies
         run: ./InstallPackages
+
+      - name: Check Lua install
+        run: |
+          dpkg -l | grep lua
+          ls -l /usr/include/lua5.1 || echo 'lua5.1 headers not found'
 
       # Checkout and build amrl_msgs
       - name: Clone and build amrl_msgs (ROS2)
@@ -64,10 +73,12 @@ jobs:
       - name: Build enml
         run: |
           source /opt/ros/$ROS_DISTRO/setup.bash
+          export AMENT_PREFIX_PATH=$(pwd)/../amrl_msgs/install:$AMENT_PREFIX_PATH
           make
 
       # Run unit tests
       - name: Run unit tests
         run: |
           source /opt/ros/$ROS_DISTRO/setup.bash
+          export AMENT_PREFIX_PATH=$(pwd)/../amrl_msgs/install:$AMENT_PREFIX_PATH
           make test
