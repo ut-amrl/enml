@@ -90,7 +90,8 @@ target_link_libraries(enml_support_lib
     ${BUILD_SPECIFIC_LIBRARIES}
     rclcpp::rclcpp
     amrl_msgs::amrl_msgs__rosidl_generator_cpp
-    amrl_msgs::amrl_msgs__rosidl_typesupport_cpp)
+    amrl_msgs::amrl_msgs__rosidl_typesupport_cpp
+    visualization_msgs::visualization_msgs__rosidl_generator_cpp)
 
 # Main ENML executable
 add_executable(enml
