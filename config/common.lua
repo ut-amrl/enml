@@ -72,3 +72,25 @@ function bbox2d_xxcr(x0,x1,cy,ry)
      rad = vec2(abs((x1-x0)/2),ry);
   }
 end
+
+-- Default ROS Configuration Parameters
+-- These can be overridden in robot-specific config files
+
+DefaultRosConfig = {
+  -- ROS Publisher Topics
+  visualization_topic = "visualization",
+  localization_topic = "localization", 
+  localization_ros_topic = "localization_ros",
+  
+  -- ROS Subscriber Topics  
+  set_pose_topic = "/set_pose",
+  
+  -- ROS Node and Frame Names
+  node_name = "enml",
+  map_frame = "map",
+  visualization_frame = "enml",
+  
+  -- Package and File Configuration
+  maps_package = "amrl_maps",
+  map_file_extension = ".txt",
+}

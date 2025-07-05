@@ -40,6 +40,7 @@ DEFINE_double(y, 0, "Initial pose y coordinate");
 DEFINE_double(theta, 0, "Initial pose angle");
 DEFINE_string(in, "", "Input bag file");
 DEFINE_string(out, "", "Output bag file");
+DEFINE_string(topic, "/initialpose", "Topic name for initialization message");
 DECLARE_string(helpmatch);
 
 geometry_msgs::msg::PoseWithCovarianceStamped InitMsg(
@@ -105,7 +106,7 @@ void ProcessBagFile(const string& in_file,
             serialization.serialize_message(&init_msg, &serialized_init_msg);
 
             auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-            bag_message->topic_name = "/initialpose";
+            bag_message->topic_name = FLAGS_topic;
             bag_message->time_stamp = serialized_message->time_stamp;
             bag_message->serialized_data = std::shared_ptr<rcutils_uint8_array_t>(
                 new rcutils_uint8_array_t(serialized_init_msg.release_rcl_serialized_message()),
@@ -129,7 +130,7 @@ int main(int argc, char* argv[]) {
     google::InitGoogleLogging(argv[0]);
     gflags::SetUsageMessage(
         "./bin/add_initialization --in INBAG --out OUTBAG "
-        "--x X --y Y --theta THETA");
+        "--x X --y Y --theta THETA [--topic TOPIC]");
     gflags::ParseCommandLineFlags(&argc, &argv, false);
     if (FLAGS_in.empty() || FLAGS_out.empty()) {
         gflags::ShowUsageWithFlagsRestrict(argv[0], "initialization");

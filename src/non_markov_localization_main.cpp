@@ -112,6 +112,21 @@ CONFIG_STRING(odom_topic, "RobotConfig.odometry_topic");
 // Name of the topic that location reset commands are published on.
 CONFIG_STRING(initialpose_topic, "RobotConfig.initialpose_topic");
 
+// ROS publisher and subscriber topic names
+CONFIG_STRING(visualization_topic, "RobotConfig.visualization_topic");
+CONFIG_STRING(localization_topic, "RobotConfig.localization_topic");
+CONFIG_STRING(localization_ros_topic, "RobotConfig.localization_ros_topic");
+CONFIG_STRING(set_pose_topic, "RobotConfig.set_pose_topic");
+
+// ROS node and frame names
+CONFIG_STRING(node_name, "RobotConfig.node_name");
+CONFIG_STRING(map_frame, "RobotConfig.map_frame");
+CONFIG_STRING(visualization_frame, "RobotConfig.visualization_frame");
+
+// Package and file configuration
+CONFIG_STRING(maps_package, "RobotConfig.maps_package");
+CONFIG_STRING(map_file_extension, "RobotConfig.map_file_extension");
+
 // ROS message for publishing SE(2) pose with map name.
 amrl_msgs::msg::Localization2DMsg localization_msg_;
 
@@ -205,19 +220,19 @@ geometry_msgs::msg::PoseStamped ConvertAMRLmsgToROSmsg(const amrl_msgs::msg::Loc
 // ROS2 Node Class for ENML
 class EnmlNode : public rclcpp::Node {
    public:
-    EnmlNode() : Node("enml") {
+    EnmlNode() : Node(CONFIG_node_name) {
         // Initialize publishers
         visualization_publisher_ = this->create_publisher<amrl_msgs::msg::VisualizationMsg>(
-            "visualization", rclcpp::QoS(1).transient_local());
+            CONFIG_visualization_topic, rclcpp::QoS(1).transient_local());
 
         localization_publisher_amrl_ = this->create_publisher<amrl_msgs::msg::Localization2DMsg>(
-            "localization", rclcpp::QoS(1).transient_local());
+            CONFIG_localization_topic, rclcpp::QoS(1).transient_local());
 
         localization_publisher_ros_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
-            "localization_ros", rclcpp::QoS(1).transient_local());
+            CONFIG_localization_ros_topic, rclcpp::QoS(1).transient_local());
 
         // Initialize visualization message
-        visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
+        visualization_msg_ = visualization::NewVisualizationMessage(CONFIG_map_frame, CONFIG_visualization_frame);
 
         RCLCPP_INFO(this->get_logger(), "ENML Node initialized");
     }
@@ -233,7 +248,7 @@ class EnmlNode : public rclcpp::Node {
             std::bind(&EnmlNode::odometryCallback, this, std::placeholders::_1));
 
         initialize_subscriber_ = this->create_subscription<amrl_msgs::msg::Localization2DMsg>(
-            "/set_pose", rclcpp::QoS(1),
+            CONFIG_set_pose_topic, rclcpp::QoS(1),
             std::bind(&EnmlNode::initializeCallback, this, std::placeholders::_1));
     }
 
@@ -612,7 +627,7 @@ void SaveStfs(
     ScopedFile fid(stfs_file, "w");
     fprintf(fid(), "%s\n", map_name.c_str());
     fprintf(fid(), "%lf\n", timestamp);
-    VectorMap map(maps_dir_ + "/" + map_name + ".txt");
+    VectorMap map(maps_dir_ + "/" + map_name + CONFIG_map_file_extension);
     if (kDisplaySteps) {
         visualization::ClearVisualizationMsg(visualization_msg_);
         nonblock(true);
@@ -1983,8 +1998,8 @@ void InitializeCallback(const amrl_msgs::msg::Localization2DMsg& msg) {
 
     if (false) {
         const string map_file = StringPrintf(
-            "%s/%s/%s.vectormap.txt",
-            maps_dir_.c_str(), msg.map.c_str(), msg.map.c_str());
+            "%s/%s/%s.vectormap%s",
+            maps_dir_.c_str(), msg.map.c_str(), msg.map.c_str(), CONFIG_map_file_extension.c_str());
         VectorMap map(map_file);
         const Vector2f d(1, 1);
         for (const Line2f& l : map.lines) {
@@ -2054,7 +2069,7 @@ void HandleStop(int i) {
 }
 
 void InitializeMessages() {
-    ros_helpers::InitRosHeader("map", &localization_msg_.header);
+    ros_helpers::InitRosHeader(CONFIG_map_frame, &localization_msg_.header);
 }
 
 int main(int argc, char** argv) {
@@ -2122,9 +2137,9 @@ int main(int argc, char** argv) {
         maps_dir_ = string(user_maps_dir);
     } else {
         try {
-            maps_dir_ = ament_index_cpp::get_package_share_directory("amrl_maps");
+            maps_dir_ = ament_index_cpp::get_package_share_directory(CONFIG_maps_package);
         } catch (const std::exception& e) {
-            fprintf(stderr, "Error: amrl_maps not found, must specify the maps directory with `--maps`\n");
+            fprintf(stderr, "Error: %s not found, must specify the maps directory with `--maps`\n", CONFIG_maps_package.c_str());
             exit(1);
         }
     }
