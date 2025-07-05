@@ -4,7 +4,8 @@ RobotConfig = {
   -- To use Kinect-based ENML, uncomment the following.
   -- pointcloud_topic = "/Cobot/Kinect/Scan";
   pointcloud_topic = "";
-  odometry_topic = "/Cobot/Odometry";
+  -- odometry_topic = "/Cobot/Odometry";
+  odometry_topic = "/odom";
   initialpose_topic = "/initialpose";
 };
 
