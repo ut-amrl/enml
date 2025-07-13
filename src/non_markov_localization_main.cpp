@@ -2132,22 +2132,13 @@ int main(int argc, char** argv) {
     while ((c = popt.getNextOpt()) >= 0) {
     }
 
-    // Initialize maps directory
-    if (user_maps_dir != nullptr) {
-        maps_dir_ = string(user_maps_dir);
-    } else {
-        try {
-            maps_dir_ = ament_index_cpp::get_package_share_directory(CONFIG_maps_package);
-        } catch (const std::exception& e) {
-            fprintf(stderr, "Error: %s not found, must specify the maps directory with `--maps`\n", CONFIG_maps_package.c_str());
-            exit(1);
-        }
-    }
-
     // Initialize ROS2 first
     rclcpp::init(argc, argv);
 
-    // Create the ENML node
+    // Load config before creating node!
+    CHECK(LoadConfiguration(&localization_options_));
+
+    // Now create the ENML node with the correct name
     if (running_tests || unique_node_name) {
         // For tests, use unique node name
         string node_name = StringPrintf("enml_%lu", static_cast<uint64_t>(GetWallTime() * 1000000.0));
@@ -2156,9 +2147,22 @@ int main(int argc, char** argv) {
         enml_node = std::make_shared<EnmlNode>();
     }
 
-    // Initialize localization after ROS2 node is created
+    // Initialize maps directory
+    if (user_maps_dir != nullptr) {
+        maps_dir_ = string(user_maps_dir);
+        RCLCPP_INFO(enml_node->get_logger(), "Using user-specified maps directory: %s", maps_dir_.c_str());
+    } else {
+        try {
+            maps_dir_ = ament_index_cpp::get_package_share_directory(CONFIG_maps_package);
+            RCLCPP_INFO(enml_node->get_logger(), "Using default %s package directory: %s", CONFIG_maps_package.c_str(), maps_dir_.c_str());
+        } catch (const std::exception& e) {
+            fprintf(stderr, "Error: %s package not found. You must specify the maps directory with `--maps_dir`\n", CONFIG_maps_package.c_str());
+            exit(1);
+        }
+    }
+
+    // Initialize localization after maps_dir_ is set
     localization_ = new NonMarkovLocalization(maps_dir_);
-    CHECK(LoadConfiguration(&localization_options_));
 
     if (running_tests) {
         const unsigned long seed = time(NULL);
