@@ -2,6 +2,8 @@
 
 [![Build Status](https://github.com/ut-amrl/enml/actions/workflows/buildTest.yml/badge.svg)](https://github.com/ut-amrl/enml/actions)
 
+This is the **ROS2 Version** of EnML. Refer to `ros-noetic` branch for the ROS1 version.
+
 Implementation in C++ of Episodic non-Markov Localization [[pdf]](https://www.joydeepb.com/Publications/ras_episodic_nonmarkov_localization.pdf).
 Please cite this work using the following bibtex:
 ```
@@ -19,7 +21,7 @@ Please cite this work using the following bibtex:
 ```
 
 ## Dependencies
-1. [ROS2](https://docs.ros.org/en/rolling/)
+1. [ROS2](https://docs.ros.org/en/humble/)
 1. [AMRL Maps](https://github.com/ut-amrl/amrl_maps)
 1. [AMRL Msgs](https://github.com/ut-amrl/amrl_msgs)
 
