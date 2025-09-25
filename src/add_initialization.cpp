@@ -27,7 +27,7 @@
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "rosbag2_cpp/readers/sequential_reader.hpp"
 #include "rosbag2_cpp/writers/sequential_writer.hpp"
-#include "rosbag2_cpp/storage_options.hpp"
+#include "rosbag2_storage/storage_options.hpp"
 #include "rclcpp/serialization.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "shared/math/math_util.h"
@@ -74,7 +74,7 @@ void ProcessBagFile(const string& in_file,
 
     // Setup ROS2 rosbag2 reader
     rosbag2_cpp::readers::SequentialReader reader;
-    rosbag2_cpp::StorageOptions read_options;
+    rosbag2_storage::StorageOptions read_options;
     read_options.uri = in_file;
     read_options.storage_id = "sqlite3";
 
@@ -86,7 +86,7 @@ void ProcessBagFile(const string& in_file,
 
     // Setup ROS2 rosbag2 writer
     rosbag2_cpp::writers::SequentialWriter writer;
-    rosbag2_cpp::StorageOptions write_options;
+    rosbag2_storage::StorageOptions write_options;
     write_options.uri = out_file;
     write_options.storage_id = "sqlite3";
 

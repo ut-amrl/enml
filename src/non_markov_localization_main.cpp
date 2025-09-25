@@ -41,14 +41,14 @@
 #include "rclcpp/rclcpp.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "rosbag2_cpp/readers/sequential_reader.hpp"
-#include "rosbag2_cpp/storage_options.hpp"
+#include "rosbag2_storage/storage_options.hpp"
 #include "rosbag2_cpp/converter_interfaces/serialization_format_converter.hpp"
 #include "rclcpp/serialization.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "tf2/LinearMath/Quaternion.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include "amrl_msgs/msg/localization2_d_msg.hpp"
 #include "amrl_msgs/msg/visualization_msg.hpp"
@@ -970,7 +970,7 @@ void LoadRosBag(const string& bagName, int max_laser_poses, double time_skip,
 
     // ROS2 rosbag2 setup
     rosbag2_cpp::readers::SequentialReader reader;
-    rosbag2_cpp::StorageOptions storage_options;
+    rosbag2_storage::StorageOptions storage_options;
     storage_options.uri = bagName;
     storage_options.storage_id = "sqlite3";
 
@@ -1270,10 +1270,9 @@ void DrawPoses(const size_t start_pose, const size_t end_pose,
         const Vector2f pose_location(poses[3 * i + 0], poses[3 * i + 1]);
         if (i > start_pose) {
             visualization::DrawLine(pose_location, pose_location_last, kTrajectoryColor, visualization_msg_);
-            const Vector2f odometry =
-                Rotation2Df(pose_angle_last) *
-                Rotation2Df(-odometry_poses[i - 1].angle) *
-                (odometry_poses[i].translation - odometry_poses[i - 1].translation);
+            const Rotation2Df rot1(pose_angle_last);
+            const Rotation2Df rot2(-odometry_poses[i - 1].angle);
+            const Vector2f odometry = (rot1.toRotationMatrix() * rot2.toRotationMatrix()) * (odometry_poses[i].translation - odometry_poses[i - 1].translation);
             visualization::DrawLine(pose_location, Vector2f(pose_location_last + odometry), kOdometryColor, visualization_msg_);
             if (kDrawCovariances && valid_covariances) {
                 DrawPoseCovariance(pose_location, covariances[i]);
@@ -1781,7 +1780,7 @@ void PlayBagFile(const string& bag_file,
 
     // ROS2 rosbag2 setup
     rosbag2_cpp::readers::SequentialReader reader;
-    rosbag2_cpp::StorageOptions storage_options;
+    rosbag2_storage::StorageOptions storage_options;
     storage_options.uri = bag_file;
     storage_options.storage_id = "sqlite3";
 
