@@ -98,6 +98,21 @@ add_executable(enml
     src/non_markov_localization_main.cpp
     src/non_markov_localization.cpp)
 
+# ROS2 dependencies
+ament_target_dependencies(enml
+    rclcpp
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+    nav_msgs
+    visualization_msgs
+    tf2
+    tf2_geometry_msgs
+    amrl_msgs
+    rosbag2_cpp
+    rosbag2_storage
+)
+
 # Link ROS2 libraries using modern target-based pattern
 target_link_libraries(enml 
     enml_support_lib
@@ -119,6 +134,18 @@ target_link_libraries(enml
 add_executable(add_initialization
     src/add_initialization.cpp)
 
+# ROS2 dependencies
+ament_target_dependencies(add_initialization
+    rclcpp
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+    nav_msgs
+    amrl_msgs
+    rosbag2_cpp
+    rosbag2_storage
+)
+
 target_link_libraries(add_initialization 
     console_bridge 
     enml_support_lib
@@ -137,6 +164,18 @@ target_link_libraries(add_initialization
 add_executable(scene_render_test
     src/scene_render_test.cc)
 
+# ROS2 dependencies
+ament_target_dependencies(scene_render_test
+    rclcpp
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+    nav_msgs
+    visualization_msgs
+    amrl_msgs
+    ament_index_cpp
+)
+
 target_link_libraries(scene_render_test 
     enml_support_lib
     rclcpp::rclcpp
@@ -150,9 +189,9 @@ target_link_libraries(scene_render_test
     ament_index_cpp::ament_index_cpp
 )
 
-# Install targets (make-based pattern)
+# Install targets (ROS2 pattern)
 install(TARGETS enml add_initialization scene_render_test
-  RUNTIME DESTINATION bin
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY config/
@@ -163,5 +202,8 @@ install(FILES
   README.md
   DESTINATION share/enml
 )
+
+# Export runtime dependencies
+ament_export_dependencies(rclcpp std_msgs geometry_msgs sensor_msgs nav_msgs visualization_msgs tf2 tf2_geometry_msgs amrl_msgs rosbag2_cpp rosbag2_storage)
 
 ament_package()
