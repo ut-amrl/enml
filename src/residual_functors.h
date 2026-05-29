@@ -453,13 +453,13 @@ struct VisibilityGlobConstraint {
     }
     /*
     CHECK_GT(residuals[0], T(-FLT_MIN));
-    if (!ceres::IsFinite(sqrt(residuals[0]))) {
+    if (!ceres::isfinite(sqrt(residuals[0]))) {
       std::cout << "ERROR res :" << residuals[0]
                 << " sqrt(res) :" << sqrt(residuals[0]) << "\n";
     }
     residuals[0] = sqrt(residuals[0]);
     */
-    CHECK(ceres::IsFinite(residuals[0]));
+    CHECK(ceres::isfinite(residuals[0]));
     return true;
   }
 

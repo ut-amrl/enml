@@ -18,18 +18,21 @@
 // Helper tool to add initialization message to ROS bag files.
 
 #include <cmath>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
 #include "gflags/gflags.h"
 #include "glog/logging.h"
 
-#include "geometry_msgs/PoseWithCovarianceStamped.h"
-#include "rosbag/bag.h"
-#include "rosbag/view.h"
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rosbag2_cpp/reader.hpp"
+#include "rosbag2_cpp/writer.hpp"
 #include "shared/math/math_util.h"
 
 using std::string;
+using std::unordered_map;
 using std::vector;
 
 DEFINE_double(x, 0, "Initial pose x coordinate");
@@ -39,11 +42,10 @@ DEFINE_string(in, "", "Input bag file");
 DEFINE_string(out, "", "Output bag file");
 DECLARE_string(helpmatch);
 
-geometry_msgs::PoseWithCovarianceStamped InitMsg(
-    float x, float y, float theta, const ros::Time& time) {
-  geometry_msgs::PoseWithCovarianceStamped msg;
+geometry_msgs::msg::PoseWithCovarianceStamped InitMsg(
+    float x, float y, float theta, const rclcpp::Time& time) {
+  geometry_msgs::msg::PoseWithCovarianceStamped msg;
   msg.header.frame_id = "map";
-  msg.header.seq = 0;
   msg.header.stamp = time;
   msg.pose.pose.position.x = x;
   msg.pose.pose.position.y = y;
@@ -67,26 +69,35 @@ void ProcessBagFile(const string& in_file,
                     float x,
                     float y,
                     float theta) {
-  rosbag::Bag in_bag;
-  rosbag::Bag out_bag;
   printf("Input: %s\nOutput: %s\n", in_file.c_str(), out_file.c_str());
-  in_bag.open(in_file.c_str(), rosbag::bagmode::Read);
-  out_bag.open(out_file.c_str(), rosbag::bagmode::Write);
+  rosbag2_cpp::Reader reader;
+  rosbag2_cpp::Writer writer;
+  reader.open(in_file);
+  writer.open(out_file);
+
+  unordered_map<string, string> topic_types;
+  for (const auto& topic_metadata : reader.get_all_topics_and_types()) {
+    topic_types[topic_metadata.name] = topic_metadata.type;
+  }
 
   bool written_init = false;
-  for(rosbag::MessageInstance const& m : rosbag::View(in_bag)) {
+  while (reader.has_next()) {
+    const auto message = reader.read_next();
     if (!written_init) {
-      const auto init_msg = InitMsg(x, y, theta, m.getTime());
-      out_bag.write("/initialpose", m.getTime(), init_msg);
+      const rclcpp::Time stamp(message->recv_timestamp);
+      const auto init_msg = InitMsg(x, y, theta, stamp);
+      writer.write(init_msg, "/initialpose", stamp);
       written_init = true;
       printf("Written init.\n");
     }
-    // printf("Msg: %f\n", m.getTime().toSec());
-    out_bag.write(m.getTopic(), m.getTime(), m);
+    const auto topic_type = topic_types.find(message->topic_name);
+    CHECK(topic_type != topic_types.end()) << message->topic_name;
+    writer.write(message, message->topic_name, topic_type->second);
   }
 }
 
 int main(int argc, char* argv[]) {
+  rclcpp::init(argc, argv);
   google::InitGoogleLogging(argv[0]);
   gflags::SetUsageMessage(
       "./bin/add_initialization --in INBAG --out OUTBAG "
@@ -97,5 +108,6 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   ProcessBagFile(FLAGS_in, FLAGS_out, FLAGS_x, FLAGS_y, FLAGS_theta);
+  rclcpp::shutdown();
   return 0;
 }

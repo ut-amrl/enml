@@ -21,6 +21,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <cfloat>
 #include <cmath>
 #include <pthread.h>
 #include <stdio.h>

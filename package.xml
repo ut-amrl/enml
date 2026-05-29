@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>enml</name>
+  <version>2.0.0</version>
+  <description>Episodic non-Markov Localization (ROS 2 Jazzy port).</description>
+  <maintainer email="joydeepb@cs.utexas.edu">Joydeep Biswas</maintainer>
+  <license>GPL-3.0-only</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>rosbag2_cpp</depend>
+  <depend>rosbag2_storage</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>amrl_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

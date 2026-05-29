@@ -24,33 +24,33 @@
 #include <string>
 
 #include "eigen3/Eigen/Dense"
-#include "amrl_msgs/VisualizationMsg.h"
+#include "amrl_msgs/msg/visualization_msg.hpp"
 
 namespace visualization {
 
 // Clear all elements in the message.
-void ClearVisualizationMsg(amrl_msgs::VisualizationMsg& msg);
+void ClearVisualizationMsg(amrl_msgs::msg::VisualizationMsg& msg);
 
 // Return new visualization message, with initialized headers and namespace.
-amrl_msgs::VisualizationMsg NewVisualizationMessage(
+amrl_msgs::msg::VisualizationMsg NewVisualizationMessage(
     const std::string& frame, const std::string& ns);
 
 // Add a single point to the visualization message.
 void DrawPoint(const Eigen::Vector2f& p,
                uint32_t color,
-               amrl_msgs::VisualizationMsg& msg);
+               amrl_msgs::msg::VisualizationMsg& msg);
 
 // Add a single line to the visualization message.
 void DrawLine(const Eigen::Vector2f& p0,
               const Eigen::Vector2f& p1,
               uint32_t color,
-              amrl_msgs::VisualizationMsg& msg);
+              amrl_msgs::msg::VisualizationMsg& msg);
 
 // Add a "X" to the visualization message.
 void DrawCross(const Eigen::Vector2f& location,
                float size,
                uint32_t color,
-               amrl_msgs::VisualizationMsg& msg);
+               amrl_msgs::msg::VisualizationMsg& msg);
 
 // Add a single line to the visualization message.
 void DrawArc(const Eigen::Vector2f& center,
@@ -58,5 +58,5 @@ void DrawArc(const Eigen::Vector2f& center,
              float start_angle,
              float end_angle,
              uint32_t color,
-             amrl_msgs::VisualizationMsg& msg);
+             amrl_msgs::msg::VisualizationMsg& msg);
 }  // namespace visualization

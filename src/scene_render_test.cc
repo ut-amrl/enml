@@ -27,8 +27,9 @@
 #include "eigen3/Eigen/Geometry"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
-#include "ros/ros.h"
-#include "ros/package.h"
+#include "ament_index_cpp/get_package_share_directory.hpp"
+#include "ament_index_cpp/get_package_prefix.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "shared/math/geometry.h"
 #include "shared/math/line2d.h"
@@ -36,8 +37,8 @@
 #include "vector_map/vector_map.h"
 #include "visualization/visualization.h"
 
-#include "amrl_msgs/Localization2DMsg.h"
-#include "amrl_msgs/VisualizationMsg.h"
+#include "amrl_msgs/msg/localization2_d_msg.hpp"
+#include "amrl_msgs/msg/visualization_msg.hpp"
 
 using Eigen::Affine2d;
 using Eigen::Affine2f;
@@ -54,8 +55,6 @@ using Eigen::Vector2f;
 using Eigen::Vector3d;
 using Eigen::Vector3f;
 using geometry::Line2f;
-using ros::Publisher;
-using ros::Subscriber;
 using std::size_t;
 using std::sort;
 using std::string;
@@ -63,9 +62,23 @@ using std::vector;
 using vector_map::TrimOcclusion;
 using vector_map::VectorMap;
 
-string maps_dir_ = ros::package::getPath("amrl_maps");
+namespace amrl_msgs {
+using Localization2DMsg = msg::Localization2DMsg;
+using VisualizationMsg = msg::VisualizationMsg;
+}  // namespace amrl_msgs
+
+string GetPackageShareDirectory(const string& package_name) {
+  try {
+    return ament_index_cpp::get_package_share_directory(package_name);
+  } catch (const ament_index_cpp::PackageNotFoundError&) {
+    return "";
+  }
+}
+
+string maps_dir_ = GetPackageShareDirectory("amrl_maps");
 amrl_msgs::VisualizationMsg viz_msg_;
-Publisher viz_pub_;
+rclcpp::Publisher<amrl_msgs::VisualizationMsg>::SharedPtr viz_pub_;
+rclcpp::Node::SharedPtr ros_node_;
 VectorMap map_;
 bool run_ = true;
 
@@ -83,16 +96,15 @@ string GetMapFileFromName(const string& map) {
 
 void InitMessages() {
   viz_msg_.header.frame_id = "map";
-  viz_msg_.header.seq = 0;
   viz_msg_.ns = "scene_render_test";
 }
 
 void PublishAndClear(float delay) {
   const int kNumRepeat = 10;
-  viz_msg_.header.stamp = ros::Time::now();
+  viz_msg_.header.stamp = ros_node_->now();
   for (int i = 0; i < kNumRepeat; ++i) {
-    viz_pub_.publish(viz_msg_);
-    ros::spinOnce();
+    viz_pub_->publish(viz_msg_);
+    rclcpp::spin_some(ros_node_);
     Sleep(delay / double(kNumRepeat));
   }
   visualization::ClearVisualizationMsg(viz_msg_);
@@ -220,11 +232,15 @@ void SetPoseCallback(const amrl_msgs::Localization2DMsg& msg) {
   printf("\nScene lines: %d\n", int(scene.size()));
 }
 
-void TestSceneRender(ros::NodeHandle& nh) {
-  Subscriber sub = nh.subscribe("set_pose", 1, SetPoseCallback);
-  while (ros::ok()) {
+void TestSceneRender(const rclcpp::Node::SharedPtr& node) {
+  auto sub = node->create_subscription<amrl_msgs::Localization2DMsg>(
+      "set_pose", 1,
+      [](const amrl_msgs::Localization2DMsg::SharedPtr msg) {
+        SetPoseCallback(*msg);
+      });
+  while (rclcpp::ok()) {
     Sleep(0.05);
-    ros::spinOnce();
+    rclcpp::spin_some(node);
   }
 }
 
@@ -257,12 +273,15 @@ void PrintSpinner() {
   i = (i + 1) % kNum;
 }
 
-void TrackVisibility(ros::NodeHandle& nh) {
-  Subscriber sub = nh.subscribe("localization", 1, 
-      TrackVisibilityLocalizationCallback);
+void TrackVisibility(const rclcpp::Node::SharedPtr& node) {
+  auto sub = node->create_subscription<amrl_msgs::Localization2DMsg>(
+      "localization", 1,
+      [](const amrl_msgs::Localization2DMsg::SharedPtr msg) {
+        TrackVisibilityLocalizationCallback(*msg);
+      });
   while (run_) {
     Sleep(0.05);
-    ros::spinOnce();
+    rclcpp::spin_some(node);
     PrintSpinner();
   }
   int num_visible_lines = 0;
@@ -287,8 +306,8 @@ int main(int num_args, char** args) {
   google::InitGoogleLogging(args[0]);
   google::ParseCommandLineFlags(&num_args, &args, false);
 
-  ros::init(num_args, args, "scene_render_test");
-  ros::NodeHandle ros_node;
+  rclcpp::init(num_args, args);
+  ros_node_ = std::make_shared<rclcpp::Node>("scene_render_test");
   signal(SIGINT, SigHandler);
   if (maps_dir_.empty()) {
     if (FLAGS_maps_dir.empty()) {
@@ -299,19 +318,22 @@ int main(int num_args, char** args) {
   }
   map_.Load(GetMapFileFromName(FLAGS_map));
 
-  viz_pub_ = ros_node.advertise<amrl_msgs::VisualizationMsg>(
-      "visualization", 1, true);
+  viz_pub_ = ros_node_->create_publisher<amrl_msgs::VisualizationMsg>(
+      "visualization", rclcpp::QoS(1).transient_local());
   InitMessages();
 
   if (FLAGS_trim_occlusion) {
     TestTrimOcclusion();
+    rclcpp::shutdown();
     return 0;
   } else if (FLAGS_track_visibility) {
-    TrackVisibility(ros_node);
+    TrackVisibility(ros_node_);
+    rclcpp::shutdown();
     return 0;
   }
   
   // AnimateSceneRender();
-  TestSceneRender(ros_node);
+  TestSceneRender(ros_node_);
+  rclcpp::shutdown();
   return 0;
 }

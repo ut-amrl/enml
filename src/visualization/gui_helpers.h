@@ -25,9 +25,10 @@
 #include "eigen3/Eigen/Dense"
 
 #include "glog/logging.h"
-#include "ros/ros.h"
-#include "visualization_msgs/Marker.h"
-#include "visualization_msgs/MarkerArray.h"
+#include "geometry_msgs/msg/point.hpp"
+#include "std_msgs/msg/color_rgba.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 #ifndef GUI_HELPERS_H
 #define GUI_HELPERS_H
@@ -60,11 +61,11 @@ void InitializeMarker(int marker_type,
                       float scale_x,
                       float scale_y,
                       float scale_z,
-                      visualization_msgs::Marker* msg);
+                      visualization_msgs::msg::Marker* msg);
 
 template <class Vector3>
-geometry_msgs::Point StdPoint(const Vector3& v) {
-  geometry_msgs::Point p;
+geometry_msgs::msg::Point StdPoint(const Vector3& v) {
+  geometry_msgs::msg::Point p;
   p.x = v.x();
   p.y = v.y();
   p.z = v.z();
@@ -72,8 +73,8 @@ geometry_msgs::Point StdPoint(const Vector3& v) {
 }
 
 template <class Color>
-std_msgs::ColorRGBA StdColor(const Color& color) {
-  std_msgs::ColorRGBA std_color;
+std_msgs::msg::ColorRGBA StdColor(const Color& color) {
+  std_msgs::msg::ColorRGBA std_color;
   std_color.a = color.a;
   std_color.r = color.r;
   std_color.g = color.g;
@@ -85,8 +86,8 @@ template <class Vector3>
 void AddLine(const Vector3& v1,
              const Vector3& v2,
              const Color4f& color,
-             visualization_msgs::Marker* msg) {
-  CHECK_EQ(msg->type, visualization_msgs::Marker::LINE_LIST);
+             visualization_msgs::msg::Marker* msg) {
+  CHECK_EQ(msg->type, visualization_msgs::msg::Marker::LINE_LIST);
   msg->points.push_back(StdPoint(v1));
   msg->points.push_back(StdPoint(v2));
   msg->colors.push_back(StdColor(color));
@@ -96,8 +97,8 @@ void AddLine(const Vector3& v1,
 template <class Vector3>
 void AddPoint(const Vector3& v,
               const Color4f& color,
-              visualization_msgs::Marker* msg) {
-  CHECK_EQ(msg->type, visualization_msgs::Marker::POINTS);
+              visualization_msgs::msg::Marker* msg) {
+  CHECK_EQ(msg->type, visualization_msgs::msg::Marker::POINTS);
   msg->points.push_back(StdPoint(v));
   msg->colors.push_back(StdColor(color));
 }
@@ -107,8 +108,8 @@ void AddTriangle(const Vector3& v1,
                  const Vector3& v2,
                  const Vector3& v3,
                  const Color4f& color,
-                 visualization_msgs::Marker* msg) {
-  CHECK_EQ(msg->type, visualization_msgs::Marker::TRIANGLE_LIST);
+                 visualization_msgs::msg::Marker* msg) {
+  CHECK_EQ(msg->type, visualization_msgs::msg::Marker::TRIANGLE_LIST);
   msg->points.push_back(StdPoint(v1));
   msg->points.push_back(StdPoint(v2));
   msg->points.push_back(StdPoint(v3));

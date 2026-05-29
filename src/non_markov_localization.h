@@ -34,7 +34,7 @@
 #include "kdtree.h"
 #include "perception_2d.h"
 #include "util/pthread_utils.h"
-#include "sensor_msgs/LaserScan.h"
+#include "sensor_msgs/msg/laser_scan.hpp"
 #include "vector_map/vector_map.h"
 
 namespace vector_localization {

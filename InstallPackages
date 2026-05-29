@@ -1,7 +1,21 @@
 #!/bin/bash
-sudo apt-get install g++ cmake libpopt-dev \
-    liblua5.1-dev libeigen3-dev \
-    libjpeg8-dev libgoogle-perftools-dev \
+sudo apt-get install -y g++ cmake build-essential libpopt-dev \
+    liblua5.2-dev libeigen3-dev \
+    libjpeg-dev libgoogle-perftools-dev \
     libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
     libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
-    libncurses5-dev
+    libncurses-dev \
+    ros-jazzy-ros-base \
+    ros-jazzy-ament-cmake \
+    ros-jazzy-ament-index-cpp \
+    ros-jazzy-rclcpp \
+    ros-jazzy-std-msgs \
+    ros-jazzy-nav-msgs \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-geometry-msgs \
+    ros-jazzy-visualization-msgs \
+    ros-jazzy-tf2 \
+    ros-jazzy-tf2-geometry-msgs \
+    ros-jazzy-rosbag2-cpp \
+    ros-jazzy-rosbag2-storage-mcap \
+    ros-jazzy-rosbag2-storage-sqlite3

@@ -25,29 +25,35 @@
 #include <algorithm>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/Eigenvalues>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <pthread.h>
+#include <memory>
 #include <queue>
 #include <string>
 #include <termios.h>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "nav_msgs/Odometry.h"
-#include "ros/ros.h"
-#include "ros/package.h"
-#include "rosbag/bag.h"
-#include "rosbag/view.h"
-#include "sensor_msgs/LaserScan.h"
-#include "sensor_msgs/PointCloud2.h"
-#include "geometry_msgs/PoseStamped.h"
+#include "ament_index_cpp/get_package_share_directory.hpp"
+#include "ament_index_cpp/get_package_prefix.hpp"
+#include "builtin_interfaces/msg/time.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp/serialization.hpp"
+#include "rclcpp/serialized_message.hpp"
+#include "rosbag2_cpp/reader.hpp"
+#include "rosbag2_storage/serialized_bag_message.hpp"
+#include "rosbag2_storage/storage_filter.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2/LinearMath/Quaternion.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
-#include "amrl_msgs/Localization2DMsg.h"
-#include "amrl_msgs/VisualizationMsg.h"
+#include "amrl_msgs/msg/localization2_d_msg.hpp"
+#include "amrl_msgs/msg/visualization_msg.hpp"
 
 #include "non_markov_localization.h"
 #include "perception_2d.h"
@@ -82,10 +88,9 @@ using perception_2d::GenerateNormals;
 using perception_2d::NormalCloudf;
 using perception_2d::PointCloudf;
 using perception_2d::Pose2Df;
-using ros::ServiceServer;
-using ros::Subscriber;
 using std::max;
 using std::min;
+using std::shared_ptr;
 using std::pair;
 using std::queue;
 using std::size_t;
@@ -99,6 +104,27 @@ using namespace geometry;
 using namespace math_util;
 
 typedef KDNodeValue<float, 2> KDNodeValue2f;
+
+namespace amrl_msgs {
+using Localization2DMsg = msg::Localization2DMsg;
+using Localization2DMsgPtr = msg::Localization2DMsg::SharedPtr;
+using VisualizationMsg = msg::VisualizationMsg;
+}  // namespace amrl_msgs
+
+namespace geometry_msgs {
+using PoseStamped = msg::PoseStamped;
+}  // namespace geometry_msgs
+
+namespace nav_msgs {
+using Odometry = msg::Odometry;
+using OdometryPtr = msg::Odometry::SharedPtr;
+}  // namespace nav_msgs
+
+namespace sensor_msgs {
+using LaserScan = msg::LaserScan;
+using LaserScanPtr = msg::LaserScan::SharedPtr;
+using PointCloud2 = msg::PointCloud2;
+}  // namespace sensor_msgs
 
 namespace {
 // Name of the topic that scan data is published on.
@@ -143,8 +169,39 @@ float kMaxOdometryDeltaAngle = DegToRad(15.0);
 // Mutex to ensure only a single relocalization call is made at a time.
 pthread_mutex_t relocalization_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
+string GetPackageShareDirectory(const string& package_name) {
+  try {
+    return ament_index_cpp::get_package_share_directory(package_name);
+  } catch (const ament_index_cpp::PackageNotFoundError&) {
+    return "";
+  }
+}
+
+double StampSeconds(const builtin_interfaces::msg::Time& stamp) {
+  return rclcpp::Time(stamp).seconds();
+}
+
+rclcpp::Time Now() {
+  return rclcpp::Clock(RCL_ROS_TIME).now();
+}
+
+double BagTimeSeconds(
+    const std::shared_ptr<rosbag2_storage::SerializedBagMessage>& message) {
+  return static_cast<double>(message->recv_timestamp) * 1.0e-9;
+}
+
+template <typename MessageT>
+MessageT DeserializeBagMessage(
+    const std::shared_ptr<rosbag2_storage::SerializedBagMessage>& message) {
+  rclcpp::SerializedMessage serialized_message(*message->serialized_data);
+  MessageT ros_message;
+  rclcpp::Serialization<MessageT> serialization;
+  serialization.deserialize_message(&serialized_message, &ros_message);
+  return ros_message;
+}
+
 // The directory where all the maps are stored.
-string maps_dir_ = ros::package::getPath("amrl_maps");
+string maps_dir_ = GetPackageShareDirectory("amrl_maps");
 
 // Directory containing all config files, including `common.lua` and `enml.lua`
 const char* config_dir_ = "config";
@@ -178,13 +235,14 @@ bool run_ = true;
 int debug_level_ = -1;
 
 // ROS publisher to publish visualization messages.
-ros::Publisher visualization_publisher_;
+rclcpp::Publisher<amrl_msgs::VisualizationMsg>::SharedPtr visualization_publisher_;
 
 // ROS publisher to publish the latest robot localization w/ amrl_msgs.
-ros::Publisher localization_publisher_amrl_;
+rclcpp::Publisher<amrl_msgs::Localization2DMsg>::SharedPtr
+    localization_publisher_amrl_;
 
 // ROS publisher to publish the latest robot localization w/ ros geometry_msgs.
-ros::Publisher localization_publisher_ros_;
+rclcpp::Publisher<geometry_msgs::PoseStamped>::SharedPtr localization_publisher_ros_;
 
 // Parameters and settings for Non-Markov Localization.
 NonMarkovLocalization::LocalizationOptions localization_options_;
@@ -276,13 +334,13 @@ geometry_msgs::PoseStamped ConvertAMRLmsgToROSmsg(const amrl_msgs::Localization2
 
 void PublishLocation(
     const string& map_name, const float x, const float y, const float angle) {
-  localization_msg_.header.stamp = ros::Time::now();
+  localization_msg_.header.stamp = Now();
   localization_msg_.map = map_name;
   localization_msg_.pose.x = x;
   localization_msg_.pose.y = y;
   localization_msg_.pose.theta = angle;
-  localization_publisher_amrl_.publish(localization_msg_);
-  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(localization_msg_));
+  localization_publisher_amrl_->publish(localization_msg_);
+  localization_publisher_ros_->publish(ConvertAMRLmsgToROSmsg(localization_msg_));
 }
 
 void PublishLocation() {
@@ -321,7 +379,7 @@ void ClearDisplay() {
 }
 
 void PublishDisplay() {
-  visualization_publisher_.publish(visualization_msg_);
+  visualization_publisher_->publish(visualization_msg_);
 }
 
 int kbhit() {
@@ -678,7 +736,7 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
   float& global_angle = *global_angle_ptr;
   Vector2f& global_location = *global_location_ptr;
   const bool keyframe = binary_search(keyframes.begin(), keyframes.end(),
-                                      laser_message->header.stamp.toSec());
+                                      StampSeconds(laser_message->header.stamp));
   if (!keyframe && relative_location.norm() <
       localization_options_.minimum_node_translation &&
       fabs(relative_angle) < localization_options_.minimum_node_rotation) {
@@ -735,7 +793,7 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
     point_clouds->push_back(point_cloud);
     normal_clouds->push_back(normal_cloud);
     poses->push_back(pose);
-    timestamps->push_back(laser_message->header.stamp.toSec());
+    timestamps->push_back(StampSeconds(laser_message->header.stamp));
     // Reset odometry accumulation.
     relative_angle = 0.0;
     relative_location = Vector2f(0.0, 0.0);
@@ -743,7 +801,9 @@ bool AddPose(const sensor_msgs::LaserScanPtr& laser_message,
   return true;
 }
 
-bool LoadLaserMessage(const rosbag::MessageInstance& message,
+bool LoadLaserMessage(const string& topic_name,
+                      double bag_time,
+                      const sensor_msgs::LaserScan& laser_message,
                       const vector<double>& keyframes,
                       Vector2f* relative_location,
                       float* relative_angle,
@@ -755,15 +815,14 @@ bool LoadLaserMessage(const rosbag::MessageInstance& message,
                       vector<double>* timestamps,
                       Vector2f* odometry_location,
                       float* odometry_angle) {
-  sensor_msgs::LaserScanPtr laser_message =
-      message.instantiate<sensor_msgs::LaserScan>();
-  if (laser_message != NULL &&
-      message.getTopic() == CONFIG_scan_topic) {
+  if (topic_name == CONFIG_scan_topic) {
     if (false && debug_level_ > 1) {
-      printf("Laser Msg,    t:%.2f\n", message.getTime().toSec());
+      printf("Laser Msg,    t:%.2f\n", bag_time);
       fflush(stdout);
     }
-    AddPose(laser_message, keyframes, relative_location, relative_angle,
+    auto laser_message_ptr = std::make_shared<sensor_msgs::LaserScan>(
+        laser_message);
+    AddPose(laser_message_ptr, keyframes, relative_location, relative_angle,
             global_location, global_angle, point_clouds, normal_clouds,
             poses, timestamps, odometry_location, odometry_angle);
     return true;
@@ -771,29 +830,27 @@ bool LoadLaserMessage(const rosbag::MessageInstance& message,
   return false;
 }
 
-bool LoadOdometryMessage(const rosbag::MessageInstance& message,
+bool LoadOdometryMessage(const string& topic_name,
+                         double bag_time,
+                         const nav_msgs::Odometry& odometry_message,
                          const Vector2f& odometry_location,
                          const float& odometry_angle,
                          Vector2f* relative_location,
                          float* relative_angle) {
-  nav_msgs::OdometryPtr odometry_message =
-      message.instantiate<nav_msgs::Odometry>();
-  const string topic_name = message.getTopic();
-  if (odometry_message != NULL &&
-      message.getTopic() == CONFIG_odom_topic) {
+  if (topic_name == CONFIG_odom_topic) {
     if (debug_level_ > 2) {
-      printf("Odometry Msg, t:%.2f\n", message.getTime().toSec());
+      printf("Odometry Msg, t:%.2f\n", bag_time);
       fflush(stdout);
     }
     const Vector2f odometry_message_location(
-        odometry_message->pose.pose.position.x,
-        odometry_message->pose.pose.position.y);
+        odometry_message.pose.pose.position.x,
+        odometry_message.pose.pose.position.y);
     *relative_location =  kOdometryTranslationScale * (
         Rotation2Df(-odometry_angle) *
         (odometry_message_location - odometry_location));
     const float odometry_message_angle =
-        2.0 * atan2(odometry_message->pose.pose.orientation.z,
-                    odometry_message->pose.pose.orientation.w);
+        2.0 * atan2(odometry_message.pose.pose.orientation.z,
+                    odometry_message.pose.pose.orientation.w);
     *relative_angle = kOdometryRotationScale *
         AngleDiff(odometry_message_angle , odometry_angle);
     if (test_set_index_ >= 0 || statistical_test_index_ >= 0) {
@@ -810,23 +867,21 @@ bool LoadOdometryMessage(const rosbag::MessageInstance& message,
   return false;
 }
 
-bool LoadSetLocationMessage(const rosbag::MessageInstance& message,
+bool LoadSetLocationMessage(const string& topic_name,
+                            double bag_time,
+                            const amrl_msgs::Localization2DMsg& set_location_message,
                             Vector2f* global_location,
                             float* global_angle,
                             string* map_name) {
-  amrl_msgs::Localization2DMsgPtr set_location_message =
-      message.instantiate<amrl_msgs::Localization2DMsg>();
-  const string topic_name = message.getTopic();
-  if (set_location_message != NULL &&
-      message.getTopic() == CONFIG_initialpose_topic)  {
+  if (topic_name == CONFIG_initialpose_topic)  {
     if (debug_level_ > 1) {
-      printf("Set Location, t:%.2f\n", message.getTime().toSec());
+      printf("Set Location, t:%.2f\n", bag_time);
       fflush(stdout);
     }
-    *global_angle = set_location_message->pose.theta;
-    global_location->x() = set_location_message->pose.x;
-    global_location->y() = set_location_message->pose.y;
-    *map_name = set_location_message->map;
+    *global_angle = set_location_message.pose.theta;
+    global_location->x() = set_location_message.pose.x;
+    global_location->y() = set_location_message.pose.y;
+    *map_name = set_location_message.map;
     return true;
   }
   return false;
@@ -861,28 +916,29 @@ void LoadRosBag(const string& bagName, int max_laser_poses, double time_skip,
   // Estimated robot global location as determined by integration of robot
   // odometry from set starting location.
   Vector2f global_location(kStartingLocation);
-  rosbag::Bag bag;
   printf("Opening bag file %s...", bagName.c_str()); fflush(stdout);
-  bag.open(bagName,rosbag::bagmode::Read);
+  rosbag2_cpp::Reader reader;
+  reader.open(bagName);
   printf(" Done.\n"); fflush(stdout);
 
-  const std::vector<std::string> topics({
+  const vector<string> topics({
     CONFIG_scan_topic,
     CONFIG_odom_topic,
     CONFIG_initialpose_topic
   });
+  rosbag2_storage::StorageFilter filter;
+  filter.topics = topics;
+  reader.set_filter(filter);
 
   printf("Reading bag file..."); fflush(stdout);
   if (false && debug_level_ > 1) printf("\n");
-  rosbag::View view(bag, rosbag::TopicQuery(topics));
   double bag_time_start = -1.0;
   double bag_time = 0.0;
-  for (rosbag::View::iterator it = view.begin();
-       run_ && it != view.end() &&
+  while (run_ && reader.has_next() &&
        (max_laser_poses < 0 ||
-       static_cast<int>(poses->size()) < max_laser_poses); ++it) {
-    const rosbag::MessageInstance &message = *it;
-    bag_time = message.getTime().toSec();
+       static_cast<int>(poses->size()) < max_laser_poses)) {
+    const auto message = reader.read_next();
+    bag_time = BagTimeSeconds(message);
     if (bag_time_start < 0.0) {
       // Initialize bag starting time.
       bag_time_start = bag_time;
@@ -891,22 +947,32 @@ void LoadRosBag(const string& bagName, int max_laser_poses, double time_skip,
     // Ignore messages before elapsed time_skip.
     if (bag_time < bag_time_start + time_skip) continue;
 
-    if (LoadSetLocationMessage(message, &global_location,
-                                &global_angle, map_name)) {
+    if (message->topic_name == CONFIG_initialpose_topic) {
+      const auto set_location_message =
+          DeserializeBagMessage<amrl_msgs::Localization2DMsg>(message);
+      LoadSetLocationMessage(message->topic_name, bag_time, set_location_message,
+                             &global_location, &global_angle, map_name);
       continue;
     }
 
     // Check to see if this is a laser scan message.
-    if (LoadLaserMessage(message, keyframes, &relative_location,
-        &relative_angle, &global_location, &global_angle, point_clouds,
-        normal_clouds, poses, timestamps, &odometry_location,
-        &odometry_angle)) {
+    if (message->topic_name == CONFIG_scan_topic) {
+      const auto laser_message =
+          DeserializeBagMessage<sensor_msgs::LaserScan>(message);
+      LoadLaserMessage(message->topic_name, bag_time, laser_message, keyframes,
+          &relative_location, &relative_angle, &global_location, &global_angle,
+          point_clouds, normal_clouds, poses, timestamps, &odometry_location,
+          &odometry_angle);
       continue;
     }
 
     // Check to see if this is an odometry message.
-    if (LoadOdometryMessage(message, odometry_location, odometry_angle,
-      &relative_location, &relative_angle)) {
+    if (message->topic_name == CONFIG_odom_topic) {
+      const auto odometry_message =
+          DeserializeBagMessage<nav_msgs::Odometry>(message);
+      LoadOdometryMessage(message->topic_name, bag_time, odometry_message,
+          odometry_location, odometry_angle, &relative_location,
+          &relative_angle);
       continue;
     }
   }
@@ -1110,17 +1176,22 @@ void DrawGradients(
 
 void DrawPoseCovariance(const Vector2f& pose, const Matrix2f& covariance) {
   static const float kDTheta = DegToRad(15.0);
-  Eigen::SelfAdjointEigenSolver<Matrix2f> solver;
-  solver.compute(covariance);
-  const Matrix2f eigenvectors = solver.eigenvectors();
-  const Vector2f eigenvalues = solver.eigenvalues();
-  for (float a = 0; a < 2.0 * M_PI; a += kDTheta) {
-    const Vector2f v1(cos(a) * sqrt(eigenvalues(0)),
-                      sin(a) * sqrt(eigenvalues(1)));
-    const Vector2f v2(cos(a + kDTheta) * sqrt(eigenvalues(0)),
-                      sin(a + kDTheta) * sqrt(eigenvalues(1)));
-    const Vector2f v1_global = eigenvectors.transpose() * v1 + pose;
-    const Vector2f v2_global = eigenvectors.transpose() * v2 + pose;
+  const float a = covariance(0, 0);
+  const float b = 0.5f * (covariance(0, 1) + covariance(1, 0));
+  const float c = covariance(1, 1);
+  const float half_trace = 0.5f * (a + c);
+  const float half_diff = 0.5f * (a - c);
+  const float discriminant = sqrt(Sq(half_diff) + Sq(b));
+  const float major_stddev = sqrt(std::max(0.0f, half_trace + discriminant));
+  const float minor_stddev = sqrt(std::max(0.0f, half_trace - discriminant));
+  const Rotation2Df eigen_rotation(0.5f * atan2(2.0f * b, a - c));
+  for (float angle = 0; angle < 2.0 * M_PI; angle += kDTheta) {
+    const Vector2f v1(cos(angle) * major_stddev,
+                      sin(angle) * minor_stddev);
+    const Vector2f v2(cos(angle + kDTheta) * major_stddev,
+                      sin(angle + kDTheta) * minor_stddev);
+    const Vector2f v1_global = eigen_rotation * v1 + pose;
+    const Vector2f v2_global = eigen_rotation * v2 + pose;
     visualization::DrawLine(v1_global, v2_global, kPoseCovarianceColor, visualization_msg_);
   }
 }
@@ -1363,7 +1434,7 @@ void StandardOdometryCallback(const nav_msgs::Odometry& last_odometry_msg,
   if (debug_level_ > 1) {
     printf("Standard Odometry %8.3f %8.3f %8.3f, t=%f\n",
            p_delta.x(), p_delta.y(), RadToDeg(d_theta),
-           odometry_msg.header.stamp.toSec());
+           StampSeconds(odometry_msg.header.stamp));
   }
   if (test_set_index_ >= 0 || statistical_test_index_ >= 0) {
     ApplyNoiseModel(p_delta.x(),
@@ -1404,7 +1475,7 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
     }
   }
   if (debug_level_ > 1) {
-    printf("LaserScan, t=%f\n", laser_message.header.stamp.toSec());
+    printf("LaserScan, t=%f\n", StampSeconds(laser_message.header.stamp));
   }
   PointCloudf point_cloud;
   const Vector2f sensor_offset(
@@ -1425,11 +1496,11 @@ void LaserCallback(const sensor_msgs::LaserScan& laser_message) {
       normal_weights_, &point_cloud, &normal_cloud);
   if (point_cloud.size() > 1) {
     if (debug_level_ > 1) {
-      printf("Sensor update, t=%f\n", laser_message.header.stamp.toSec());
+      printf("Sensor update, t=%f\n", StampSeconds(laser_message.header.stamp));
     }
     timespec timestamp;
     timestamp.tv_sec = laser_message.header.stamp.sec;
-    timestamp.tv_nsec = laser_message.header.stamp.nsec;
+    timestamp.tv_nsec = laser_message.header.stamp.nanosec;
     localization_->SensorUpdate(point_cloud, normal_cloud, timestamp);
   }
   last_laser_scan_ = laser_message;
@@ -1547,7 +1618,7 @@ void SRLVisualize(
 }
 
 void SensorResettingResample(const sensor_msgs::LaserScan& laser_message) {
-  printf("SRL with laser t=%f\n", laser_message.header.stamp.toSec());
+  printf("SRL with laser t=%f\n", StampSeconds(laser_message.header.stamp));
   PointCloudf point_cloud;
   const Vector2f sensor_offset(
       localization_options_.sensor_offset.x(),
@@ -1617,12 +1688,14 @@ void PlayBagFile(const string& bag_file,
                  int max_poses,
                  bool use_point_constraints,
                  double time_skip,
-                 ros::NodeHandle* node_handle,
+                 const shared_ptr<rclcpp::Node>& node,
                  double* observation_error_ptr,
                  char* keyframes_file,
                  double rate) {
   const bool compute_error = (observation_error_ptr != NULL);
-  double& observation_error = *observation_error_ptr;
+  double observation_error_storage = 0.0;
+  double& observation_error =
+      compute_error ? *observation_error_ptr : observation_error_storage;
   double num_observed_points = 0.0;
   if (compute_error) {
     observation_error = 0.0;
@@ -1635,22 +1708,24 @@ void PlayBagFile(const string& bag_file,
   localization_->Initialize(Pose2Df(kStartingAngle, kStartingLocation),
                            kMapName);
 
-  rosbag::Bag bag;
   timespec first_laser_stamp;
   first_laser_stamp.tv_sec = 0;
   first_laser_stamp.tv_nsec = 0;
   bool had_laser_stamp_yet = false;
   if (!quiet_) printf("Processing bag file %s\n", bag_file.c_str());
-  bag.open(bag_file.c_str(), rosbag::bagmode::Read);
+  rosbag2_cpp::Reader reader;
+  reader.open(bag_file);
   const double t_start = GetMonotonicTime();
 
-  const std::vector<std::string> topics({
+  const vector<string> topics({
     CONFIG_scan_topic,
     CONFIG_odom_topic,
     CONFIG_initialpose_topic,
   });
+  rosbag2_storage::StorageFilter filter;
+  filter.topics = topics;
+  reader.set_filter(filter);
 
-  rosbag::View view(bag, rosbag::TopicQuery(topics));
   double bag_time_start = -1.0;
   double bag_time = 0.0;
   int num_laser_scans = 0;
@@ -1662,16 +1737,16 @@ void PlayBagFile(const string& bag_file,
   vector<Pose2Df> pose_trajectory;
   nonblock(true);
   RateLoop loop(rate);  // Runs the loop at specified Hz
-  for (rosbag::View::iterator it = view.begin();
-       run_ && it != view.end(); ++it) {
-    const rosbag::MessageInstance &message = *it;
-    bag_time = message.getTime().toSec();
+  while (run_ && reader.has_next() &&
+         (max_poses < 0 || num_laser_scans < max_poses)) {
+    const auto message = reader.read_next();
+    bag_time = BagTimeSeconds(message);
     if (bag_time_start < 0.0) {
       // Initialize bag starting time.
       bag_time_start = bag_time;
     }
     if (!quiet_ && debug_level_ > 1) {
-      printf("message from %s\n", message.getTopic().c_str());
+      printf("message from %s\n", message->topic_name.c_str());
     }
     // Ignore messages before elapsed time_skip.
     if (bag_time < bag_time_start + time_skip) continue;
@@ -1701,7 +1776,7 @@ void PlayBagFile(const string& bag_file,
           keycode = 0;
           while (keycode !=' ' && run_) {
             Sleep(0.01);
-            ros::spinOnce();
+            rclcpp::spin_some(node);
             if (kbhit()!=0) {
               keycode = fgetc(stdin);
             }
@@ -1722,50 +1797,46 @@ void PlayBagFile(const string& bag_file,
     }
 
     // Check to see if this is a laser scan message.
-    {
-      sensor_msgs::LaserScanPtr laser_message =
-          message.instantiate<sensor_msgs::LaserScan>();
-      if (laser_message != NULL &&
-          message.getTopic() == CONFIG_scan_topic) {
-        ++num_laser_scans;
-        if (!had_laser_stamp_yet) {
-            first_laser_stamp.tv_sec = laser_message->header.stamp.sec;
-            first_laser_stamp.tv_nsec = laser_message->header.stamp.nsec;
-            had_laser_stamp_yet = true;
-        }
-        LaserCallback(*laser_message);
-        while(localization_->RunningSolver()) {
-          Sleep(0.001);
-        }
-        last_laser_scan = *laser_message;
-        last_laser_pose = localization_->GetLatestPose();
-        pose_trajectory.push_back(localization_->GetLatestPose());
-        PublishLocation();
-        continue;
+    if (message->topic_name == CONFIG_scan_topic) {
+      const auto laser_message =
+          DeserializeBagMessage<sensor_msgs::LaserScan>(message);
+      ++num_laser_scans;
+      if (!had_laser_stamp_yet) {
+          first_laser_stamp.tv_sec = laser_message.header.stamp.sec;
+          first_laser_stamp.tv_nsec = laser_message.header.stamp.nanosec;
+          had_laser_stamp_yet = true;
       }
+      LaserCallback(laser_message);
+      while(localization_->RunningSolver()) {
+        Sleep(0.001);
+      }
+      last_laser_scan = laser_message;
+      last_laser_pose = localization_->GetLatestPose();
+      pose_trajectory.push_back(localization_->GetLatestPose());
+      PublishLocation();
+      continue;
     }
 
     // Check to see if this is a standardized odometry message.
-    {
-      nav_msgs::OdometryPtr odometry_message =
-          message.instantiate<nav_msgs::Odometry>();
-      if (odometry_message != NULL &&
-          message.getTopic() == CONFIG_odom_topic) {
-        if (standard_odometry_initialized) {
-          StandardOdometryCallback(last_standard_odometry, *odometry_message);
-        } else {
-          standard_odometry_initialized = true;
-        }
-        last_standard_odometry = *odometry_message;
+    if (message->topic_name == CONFIG_odom_topic) {
+      const auto odometry_message =
+          DeserializeBagMessage<nav_msgs::Odometry>(message);
+      if (standard_odometry_initialized) {
+        StandardOdometryCallback(last_standard_odometry, odometry_message);
+      } else {
+        standard_odometry_initialized = true;
       }
+      last_standard_odometry = odometry_message;
     }
 
-    {
+    if (message->topic_name == CONFIG_initialpose_topic) {
+      const auto set_location_message =
+          DeserializeBagMessage<amrl_msgs::Localization2DMsg>(message);
       Vector2f init_location;
       float init_angle;
       string init_map;
-      if (LoadSetLocationMessage(message, &init_location, &init_angle,
-          &init_map)) {
+      if (LoadSetLocationMessage(message->topic_name, bag_time,
+          set_location_message, &init_location, &init_angle, &init_map)) {
         if (debug_level_ > 0) {
           printf("Initializing location to %s: %f,%f, %f\u00b0\n",
                  init_map.c_str(), init_location.x(), init_location.y(),
@@ -1826,8 +1897,8 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
   }
   localization_->Initialize(
       Pose2Df(msg.pose.theta, Vector2f(msg.pose.x, msg.pose.y)), msg.map);
-  localization_publisher_amrl_.publish(msg);
-  localization_publisher_ros_.publish(ConvertAMRLmsgToROSmsg(msg));
+  localization_publisher_amrl_->publish(msg);
+  localization_publisher_ros_->publish(ConvertAMRLmsgToROSmsg(msg));
 
   if (false) {
     const string map_file = StringPrintf(
@@ -1844,7 +1915,8 @@ void InitializeCallback(const amrl_msgs::Localization2DMsg& msg) {
   }
 }
 
-void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
+void OnlineLocalize(bool use_point_constraints,
+                    const shared_ptr<rclcpp::Node>& node) {
   // Subscribe to laser scanner.
   localization_options_.use_STF_constraints = use_point_constraints;
   localization_options_.log_poses = true;
@@ -1854,20 +1926,32 @@ void OnlineLocalize(bool use_point_constraints, ros::NodeHandle* node) {
   localization_->Initialize(Pose2Df(kStartingAngle, kStartingLocation),
                            kMapName);
 
-  Subscriber laser_subscriber =
-      node->subscribe(CONFIG_scan_topic, 1, LaserCallback);
-  Subscriber odom_subscriber =
-      node->subscribe(CONFIG_odom_topic, 1, OdometryCallback);
-  Subscriber initialize_subscriber =
-      node->subscribe("/set_pose", 1, InitializeCallback);
+  auto laser_subscriber =
+      node->create_subscription<sensor_msgs::LaserScan>(
+          CONFIG_scan_topic, 1,
+          [](const sensor_msgs::LaserScan::SharedPtr msg) {
+            LaserCallback(*msg);
+          });
+  auto odom_subscriber =
+      node->create_subscription<nav_msgs::Odometry>(
+          CONFIG_odom_topic, 1,
+          [](const nav_msgs::Odometry::SharedPtr msg) {
+            OdometryCallback(*msg);
+          });
+  auto initialize_subscriber =
+      node->create_subscription<amrl_msgs::Localization2DMsg>(
+          "/set_pose", 1,
+          [](const amrl_msgs::Localization2DMsg::SharedPtr msg) {
+            InitializeCallback(*msg);
+          });
 
   ClearDisplay();
   PublishDisplay();
 
-  while (run_ && ros::ok()) {
+  while (run_ && rclcpp::ok()) {
     Sleep(0.02);
     // TODO: Handle dynamic reloading of config.
-    ros::spinOnce();
+    rclcpp::spin_some(node);
   }
 }
 
@@ -1965,8 +2049,11 @@ int main(int argc, char** argv) {
   while((c = popt.getNextOpt()) >= 0){
   }
 
-  if (maps_dir_.empty() && user_maps_dir == nullptr) {
-    fprintf(stderr, "Error: amrl_maps not found, must either specify the maps directory with `--maps`, or add the amrl_maps package to ROS_PACKAGE_PATH\n");
+  if (user_maps_dir != nullptr) {
+    maps_dir_ = user_maps_dir;
+  }
+  if (maps_dir_.empty()) {
+    fprintf(stderr, "Error: amrl_maps not found, must either specify the maps directory with `--maps`, or make amrl_maps discoverable with AMENT_PREFIX_PATH\n");
     exit(1);
   }
   localization_ = new NonMarkovLocalization(maps_dir_);
@@ -1985,29 +2072,34 @@ int main(int argc, char** argv) {
       StringPrintf("NonMarkovLocalization_%lu",
                    static_cast<uint64_t>(GetWallTime() * 1000000.0)) :
       string("NonMarkovLocalization");
-  ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
-  ros::NodeHandle ros_node;
+  rclcpp::init(argc, argv);
+  const auto ros_node = std::make_shared<rclcpp::Node>(node_name);
   InitializeMessages();
   localization_publisher_amrl_ =
-      ros_node.advertise<amrl_msgs::Localization2DMsg>(
-      "localization", 1, true);
+      ros_node->create_publisher<amrl_msgs::Localization2DMsg>(
+          "localization", rclcpp::QoS(1).transient_local());
   localization_publisher_ros_ =
-      ros_node.advertise<geometry_msgs::PoseStamped>(
-      "localization_ros", 1, true);
+      ros_node->create_publisher<geometry_msgs::PoseStamped>(
+          "localization_ros", rclcpp::QoS(1).transient_local());
   {
     visualization_publisher_ =
-        ros_node.advertise<amrl_msgs::VisualizationMsg>(
-        "visualization", 1, true);
+        ros_node->create_publisher<amrl_msgs::VisualizationMsg>(
+            "visualization", rclcpp::QoS(1).transient_local());
     visualization_msg_ = visualization::NewVisualizationMessage("map", "enml");
   }
 
   if (bag_file != NULL) {
     PlayBagFile(
-        bag_file, max_laser_poses, !disable_stfs, time_skip, &ros_node, NULL, keyframes_file, rate);
+        bag_file, max_laser_poses, !disable_stfs, time_skip, ros_node, NULL,
+        keyframes_file, rate);
   } else {
-    OnlineLocalize(!disable_stfs, &ros_node);
+    OnlineLocalize(!disable_stfs, ros_node);
   }
 
   delete localization_;
+  visualization_publisher_.reset();
+  localization_publisher_ros_.reset();
+  localization_publisher_amrl_.reset();
+  rclcpp::shutdown();
   return 0;
 }

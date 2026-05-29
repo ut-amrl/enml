@@ -19,20 +19,20 @@ Please cite this work using the following bibtex:
 ```
 
 ## ROS Dependencies
-1. [ROS](https://www.ros.org/)
-1. [AMRL Maps](https://github.com/ut-amrl/amrl_maps)
-1. [AMRL ROS Messages](https://github.com/ut-amrl/amrl_msgs)
+1. [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/) on Ubuntu 24.04.
+2. [AMRL Maps](https://github.com/ut-amrl/amrl_maps)
+3. [AMRL ROS Messages](https://github.com/ut-amrl/amrl_msgs)
 
 ## Compiling
-1. Run `./InstallPackages` to install the dependencies on *ubuntu >=14.04 .
-1. Add the working directory to the `ROS_PACKAGE_PATH` environment variable with:
-
+1. Run `./InstallPackages` to install the dependencies on Ubuntu 24.04 and ROS 2 Jazzy.
+2. Source ROS 2 Jazzy:
    ```
-    export ROS_PACKAGE_PATH=`pwd`:$ROS_PACKAGE_PATH
-    ```
-1. Install [amrl_msgs](https://github.com/ut-amrl/amrl_msgs) and add it to the `ROS_PACKAGE_PATH` variable.
-1. run `git submodule update --init --recursive` to pull submodules
-1. Run `make`
+   source /opt/ros/jazzy/setup.bash
+   ```
+3. Install [amrl_msgs](https://github.com/ut-amrl/amrl_msgs) following its ROS 2 instructions.
+4. Install [amrl_maps](https://github.com/ut-amrl/amrl_maps) and make its install prefix visible with `AMENT_PREFIX_PATH`, or pass the map directory with `--maps_dir`.
+5. Run `git submodule update --init --recursive` to pull submodules.
+6. Run `make`
 
 ## Configuration
 Configuration files are written in Lua.
@@ -77,7 +77,10 @@ Open the webrviz html file in browser, and connect to localhost. This will autom
 
 ![EnML Example](example.png)
 
-1. Download the example ROS bag file of the UT-Jackal navigating from GDC to AHG: [2020-06-03-18-51-39.bag](https://drive.google.com/file/d/17Y6mClJp9mZfIsodh9LAruN21cs7V0KH/view?usp=share_link)
+1. Download the example MCAP rosbag for the UT-Jackal navigating from GDC to AHG, [2020-06-03-18-51-39.mcap](https://drive.google.com/file/d/1VCajhl0s2Ig7zansUGviHfWi3q_ecAp0/view?usp=sharing) and save it as:
+    ```
+    data/2020-06-03-18-51-39.mcap
+    ```
 1. Edit `config/robot.lua` to match the UT Jackal's configuration:
     ```
     RobotConfig = {
@@ -103,5 +106,5 @@ Open the webrviz html file in browser, and connect to localhost. This will autom
 1. Run vector_display
 1. Run Enml in offline bag replay mode with the example bag file:
     ```
-    ./bin/enml -d1 -b 2020-06-03-18-51-39.bag
+    ./bin/enml -d1 -b data/2020-06-03-18-51-39.mcap --maps_dir /path/to/amrl_maps
     ```

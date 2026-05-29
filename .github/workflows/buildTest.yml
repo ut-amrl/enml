@@ -1,64 +1,64 @@
 name: Build-Test
-# Run this workflow every time a new commit pushed to your repository
 on: push
 
 jobs:
-  # Set the job key. The key is displayed as the job name
-  # when a job name is not provided
   build-test:
-    # Name the Job
     name: Build test
-    # Set the type of machine to run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
-      # Run package update
-      - name: Run package update
-        run: |
-          sudo apt update
-          sudo apt dist-upgrade -y
-
-      # Install dependencies
-      - name: Install dependencies
-        run: |
-          sudo apt-get install g++ cmake libpopt-dev \
-            liblua5.1-dev libeigen3-dev \
-            libjpeg8-dev libgoogle-perftools-dev \
-            libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
-            libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev
-
-      # Install ROS
-      - name: Install ROS
-        run: |
-          sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-          sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-          sudo apt update
-          sudo apt install ros-noetic-desktop
-          sudo apt install python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential
-          sudo rosdep init
-          rosdep update
-
-
-      # Checks out a copy of your repository
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
-      # Checkout and build amrl_msgs
-      - name: Get amrl_msgs
+      - name: Install ROS 2 apt source
         run: |
-          source /opt/ros/noetic/setup.bash
-          export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/../amrl_msgs
-          cd $GITHUB_WORKSPACE/..
+          sudo apt-get update
+          sudo apt-get install -y curl
+          export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | awk -F'"' '/tag_name/ {print $4}')
+          curl -sSL -o /tmp/ros2-apt-source.deb \
+            "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo "${UBUNTU_CODENAME:-${VERSION_CODENAME}}")_all.deb"
+          sudo apt-get install -y /tmp/ros2-apt-source.deb
+          sudo apt-get update
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y \
+            build-essential g++ cmake git libpopt-dev \
+            liblua5.2-dev libeigen3-dev \
+            libjpeg-dev libgoogle-perftools-dev \
+            libsuitesparse-dev libblas-dev liblapack-dev libopenmpi-dev \
+            libgoogle-glog-dev libgflags-dev libceres-dev libtbb-dev \
+            libncurses-dev \
+            ros-jazzy-ros-base \
+            ros-jazzy-ament-cmake \
+            ros-jazzy-ament-index-cpp \
+            ros-jazzy-rclcpp \
+            ros-jazzy-std-msgs \
+            ros-jazzy-nav-msgs \
+            ros-jazzy-sensor-msgs \
+            ros-jazzy-geometry-msgs \
+            ros-jazzy-visualization-msgs \
+            ros-jazzy-tf2 \
+            ros-jazzy-tf2-geometry-msgs \
+            ros-jazzy-rosbag2-cpp \
+            ros-jazzy-rosbag2-storage-mcap \
+            ros-jazzy-rosbag2-storage-sqlite3
+
+      - name: Build amrl_msgs
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd "$GITHUB_WORKSPACE/.."
           git clone https://github.com/ut-amrl/amrl_msgs.git
           cd amrl_msgs
-          make
+          ROS_VERSION=2 make
 
-      # Compiles the code
-      - name: Run build
+      - name: Build enml
         run: |
-          source /opt/ros/noetic/setup.bash
-          export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/../amrl_msgs
-          cd $GITHUB_WORKSPACE
+          source /opt/ros/jazzy/setup.bash
+          export AMENT_PREFIX_PATH="$GITHUB_WORKSPACE/../amrl_msgs/install:$AMENT_PREFIX_PATH"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/../amrl_msgs/install:$CMAKE_PREFIX_PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/../amrl_msgs/install/lib:$LD_LIBRARY_PATH"
+          cd "$GITHUB_WORKSPACE"
           make
